@@ -12,7 +12,7 @@
     "purescript-effect": "^2.0.1",
     "purescript-affjax": "^6.0.0",
     "purescript-record": "^1.0.0",
-    "purescript-argonaut": "^5.0.0"
+    "purescript-argonaut": "^4.0.0"
 
   },
   "devDependencies": {
