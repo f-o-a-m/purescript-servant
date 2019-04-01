@@ -15,6 +15,8 @@ module Servant.Api.Types
   , class RouteBuilder
   , buildRoute
     -- * Captures
+  , class ToCapture
+  , toCapture
   , Captures(..)
   , noCaptures
     -- * Query Params
