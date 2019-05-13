@@ -87,11 +87,7 @@ class RouteBuilder (r :: Route) (captures :: #Type) (params :: #Type) (headers :
   buildRoute :: RouteProxy r -> Captures captures -> QueryParams params -> Headers headers -> SuspendedRoute body response
 
 
-instance baseRouteBuilderGetNoParams ::
-  ( RowList.RowToList captures RowList.Nil
-  , RowList.RowToList params RowList.Nil
-  , RowList.RowToList headers RowList.Nil
-  ) => RouteBuilder (GET response) captures params headers Void response where
+instance baseRouteBuilderGetNoParams :: RouteBuilder (GET response) captures params headers Void response where
   buildRoute _ _ _ _ = SuspendedRoute { queryString: Nothing
                                       , path: []
                                       , headers: []
@@ -166,7 +162,6 @@ newtype Captures r = Captures (Record r)
 noCaptures :: Captures ()
 noCaptures = Captures {}
 
-
 --------------------------------------------------------------------------------
 -- Headers
 --------------------------------------------------------------------------------
@@ -232,8 +227,6 @@ formatQueryString (QueryParams r) =
     formatParam qp = case qp of
       SingleParam k v -> k <> "=" <> v
       ArrayParams k vs -> intercalate "&" $ map (\v -> k <> "=" <> v) vs
-
-
 
 --------------------------------------------------------------------------------
 -- instances
