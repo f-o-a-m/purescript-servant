@@ -10,7 +10,9 @@
     "purescript-prelude": "^4.0.0",
     "purescript-effect": "^2.0.1",
     "purescript-affjax": "^6.0.0",
-    "purescript-argonaut": "^4.0.0"
+    "purescript-argonaut": "^4.0.0",
+    "purescript-argonaut": "^4.0.0",
+    "purescript-heterogeneous": "^0.3.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0"

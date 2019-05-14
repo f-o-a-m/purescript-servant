@@ -26,14 +26,12 @@ module Servant.Api.Types
   , Required(..)
   , QueryParams(..)
   , noQueryParams
+  , QueryParamEntry
   , class QueryParam1
   , queryParam1
-  , class RecToQueryParams
-  , recToQueryParams
   , formatQueryString
-  , class RecToHeaders
-  , recToHeaders
   , Headers(..)
+  , HeaderEntry
   , noHeaders
   , class ToHeader
   , toHeader
@@ -45,15 +43,14 @@ import Data.Array (cons, fromFoldable, intercalate)
 import Data.Array.NonEmpty as NEA
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..), CustomMethod)
-import Data.List (List(..))
 import Data.Maybe (Maybe(..), maybe)
 import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple(..))
+import Heterogeneous.Folding (class FoldingWithIndex, class FoldlRecord, hfoldlWithIndex)
 import Prim.Row as Row
 import Prim.RowList as RowList
 import Record (delete, get)
-import Type.Data.RowList as TRowList
 
 --------------------------------------------------------------------------------
 -- Route types and kinds
@@ -90,36 +87,20 @@ class RouteBuilder (r :: Route) (captures :: #Type) (params :: #Type) (headers :
   buildRoute :: RouteProxy r -> Captures captures -> QueryParams params -> Headers headers -> SuspendedRoute body response
 
 
-instance baseRouteBuilderGetNoParams ::
-  ( RowList.RowToList captures RowList.Nil
-  , RowList.RowToList params RowList.Nil
-  , RowList.RowToList headers RowList.Nil
-  ) => RouteBuilder (GET response) captures params headers Void response where
+instance baseRouteBuilderGetNoParams :: RouteBuilder (GET response) captures params headers Void response where
   buildRoute _ _ _ _ = SuspendedRoute { queryString: Nothing
                                       , path: []
                                       , headers: []
                                       , requestMethod: Left GET
                                       }
 
-instance baseRouteBuilderPost ::
-  ( RowList.RowToList captures RowList.Nil
-  , RowList.RowToList params lp
-  , RecToQueryParams lp params
-  , RowList.RowToList headers lh
-  , RecToQueryParams lh headers
-  ) => RouteBuilder (POST body response) captures params headers body response where
+instance baseRouteBuilderPost :: RouteBuilder (POST body response) captures params headers body response where
   buildRoute _ _ _ _ = SuspendedRoute { queryString: Nothing
                                       , path: []
                                       , headers: []
                                       , requestMethod: Left POST
                                       }
-instance baseRouteBuilderDelete ::
-  ( RowList.RowToList captures RowList.Nil
-  , RowList.RowToList params l
-  , RecToQueryParams l params
-  , RowList.RowToList headers lh
-  , RecToQueryParams lh headers
-  ) => RouteBuilder (DELETE body response) captures params headers body response where
+instance baseRouteBuilderDelete :: RouteBuilder (DELETE body response) captures params headers body response where
   buildRoute _ _ _ _ = SuspendedRoute { queryString: Nothing
                                       , path: []
                                       , headers: []
@@ -127,22 +108,22 @@ instance baseRouteBuilderDelete ::
                                       }
 
 instance baseRouteBuilderParams ::
-  ( RowList.RowToList params l
-  , RecToQueryParams l params
-  , RouteBuilder r captures () headers body response
+  ( RouteBuilder r captures () headers body response
+  , RowList.RowToList params paramsList
+  , FoldlRecord QueryParamEntry (Array QueryParam) paramsList params (Array QueryParam)
   ) => RouteBuilder (QP params :> r) captures params headers body response where
   buildRoute _ captures params headers =
-    let SuspendedRoute route = buildRoute (RouteProxy :: RouteProxy r) captures (QueryParams {}) headers
+    let SuspendedRoute route = buildRoute (RouteProxy :: RouteProxy r) captures noQueryParams headers
     in SuspendedRoute route { queryString = Just $ formatQueryString params }
 
 instance baseRouteBuilderHeaders ::
-  ( RowList.RowToList headers l
-  , RecToHeaders l headers
-  , RouteBuilder r captures params () body response
+  ( RouteBuilder r captures params () body response
+  , RowList.RowToList headers headersList
+  , FoldlRecord HeaderEntry (Array (Tuple String String)) headersList headers (Array (Tuple String String))
   ) => RouteBuilder (HDRS headers :> r) captures params headers body response where
   buildRoute _ captures params (Headers hdrs) =
-    let SuspendedRoute route = buildRoute (RouteProxy :: RouteProxy r) captures params (Headers {})
-    in SuspendedRoute route { headers = recToHeaders (TRowList.RLProxy :: TRowList.RLProxy l) hdrs}
+    let SuspendedRoute route = buildRoute (RouteProxy :: RouteProxy r) captures params noHeaders
+    in SuspendedRoute route { headers = hfoldlWithIndex HeaderEntry ([] :: Array (Tuple String String)) hdrs}
 
 instance stringRouteBuilder ::
   ( IsSymbol s
@@ -181,38 +162,22 @@ newtype Captures r = Captures (Record r)
 noCaptures :: Captures ()
 noCaptures = Captures {}
 
-
 --------------------------------------------------------------------------------
 -- Headers
 --------------------------------------------------------------------------------
 
 newtype Headers r = Headers (Record r)
 
-class RecToHeaders (l :: RowList.RowList) r | l -> r where
-  recToHeaders :: TRowList.RLProxy l -> Record r -> Array (Tuple String String)
-
-instance recToHeadersBase :: RecToHeaders RowList.Nil r where
-  recToHeaders _ _ = []
-
-instance recToHeadersInductive
-         :: ( IsSymbol s
-            , Row.Cons s a r' r
-            , Row.Lacks s r'
-            , RecToHeaders l r'
-            , ToHeader a
-            ) => RecToHeaders (RowList.Cons s a l) r where
-           recToHeaders _ r =
-             let k = reflectSymbol (SProxy :: SProxy s)
-                 (hdr :: a) = get (SProxy :: SProxy s) r
-                 (r' :: Record r') = delete (SProxy :: SProxy s) r
-                 rest = recToHeaders (TRowList.RLProxy :: TRowList.RLProxy l) r'
-             in Tuple k (toHeader hdr) `cons` rest
-
 noHeaders :: Headers ()
 noHeaders = Headers {}
 
 class ToHeader a where
   toHeader :: a -> String
+
+data HeaderEntry = HeaderEntry
+
+instance headerEntry :: (ToHeader a, IsSymbol sym) => FoldingWithIndex HeaderEntry (SProxy sym) (Array (Tuple String String)) a (Array (Tuple String String)) where
+  foldingWithIndex HeaderEntry prop acc a = Tuple (reflectSymbol prop) (toHeader a) `cons` acc
 
 --------------------------------------------------------------------------------
 -- Query Params
@@ -243,35 +208,19 @@ instance queryParam1Maybe :: QueryParam1 Maybe where
 instance queryParam1Array :: QueryParam1 Array where
   queryParam1 s as = ArrayParams s <$> NEA.fromArray (map encodeQueryParam as)
 
-class RecToQueryParams (l :: RowList.RowList) r | l -> r where
-  recToQueryParams :: TRowList.RLProxy l -> Record r -> List QueryParam
+data QueryParamEntry = QueryParamEntry
 
-instance recToQueryParamsBase :: RecToQueryParams RowList.Nil r where
-  recToQueryParams _ _ = Nil
-
-instance recToQueryParamsInductive
-  :: ( IsSymbol s
-     , Row.Cons s (f a) r' r
-     , Row.Lacks s r'
-     , RecToQueryParams l r'
-     , QueryParam1 f
-     , EncodeQueryParam a
-     ) => RecToQueryParams (RowList.Cons s (f a) l) r where
-  recToQueryParams _ r =
-    let k = reflectSymbol (SProxy :: SProxy s)
-        (as :: f a) = get (SProxy :: SProxy s) r
-        (r' :: Record r') = delete (SProxy :: SProxy s) r
-        rest = recToQueryParams (TRowList.RLProxy :: TRowList.RLProxy l) r'
-    in maybe rest (\a -> Cons a rest) $ queryParam1 k as
+instance queryParamEntry :: (QueryParam1 f, EncodeQueryParam a, IsSymbol sym) => FoldingWithIndex QueryParamEntry (SProxy sym) (Array QueryParam) (f a) (Array QueryParam) where
+  foldingWithIndex QueryParamEntry prop acc f = maybe acc (\param -> param `cons` acc) $ queryParam1 (reflectSymbol prop) f
 
 formatQueryString
-  :: forall l r.
-     RowList.RowToList r l
-  => RecToQueryParams l r
-  => QueryParams r
+  :: forall qp qpList.
+     RowList.RowToList qp qpList
+  => FoldlRecord QueryParamEntry (Array QueryParam) qpList qp (Array QueryParam)
+  => QueryParams qp
   -> QueryString
 formatQueryString (QueryParams r) =
-    let paramsList = recToQueryParams (TRowList.RLProxy :: TRowList.RLProxy l) r
+    let paramsList = hfoldlWithIndex QueryParamEntry ([] :: Array QueryParam) (r :: Record qp)
     in joinWith "&" <<< fromFoldable $ map formatParam paramsList
   where
     formatParam :: QueryParam -> String
