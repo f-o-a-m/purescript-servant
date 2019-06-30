@@ -43,6 +43,9 @@ module Servant.Api.Types
 
 import Prelude
 
+import Affjax as Request
+import Affjax.RequestBody as Request
+import Affjax.ResponseFormat (ResponseFormat, json)
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, jsonParser)
 import Data.Array (cons, fromFoldable, intercalate)
 import Data.Array.NonEmpty as NEA
@@ -53,7 +56,6 @@ import Data.String (joinWith)
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple(..))
 import Heterogeneous.Folding (class FoldingWithIndex, class FoldlRecord, hfoldlWithIndex)
-import Network.HTTP.Affjax.Request as Request
 import Prim.Row as Row
 import Prim.RowList as RowList
 import Record (delete, get)
@@ -117,24 +119,24 @@ instance isMethodDELETE :: IsMethod (DELETE ct a) where
 --------------------------------------------------------------------------------
 
 class MimeUnrender ctype a where
-  mimeUnrender :: Proxy a -> Proxy ctype -> { parse :: String -> Either String ctype
+  mimeUnrender :: Proxy a -> Proxy ctype -> { responseFormat :: ResponseFormat ctype
                                             , decode :: ctype -> Either String a
                                             }
 
 instance mimeUnrenderJson :: DecodeJson a => MimeUnrender Json a where
-  mimeUnrender _ _ = { parse: jsonParser
+  mimeUnrender _ _ = { responseFormat: json
                      , decode: decodeJson
                      }
 
 --------------------------------------------------------------------------------
 
 class MimeRender ctype a where
-  mimeRender :: Proxy a -> Proxy ctype -> { print :: ctype -> Request.Request
+  mimeRender :: Proxy a -> Proxy ctype -> { print :: ctype -> Request.RequestBody
                                           , encode :: a -> ctype
                                           }
 
 instance mimeRenderJson :: EncodeJson a => MimeRender Json a where
-  mimeRender _ _ = { print: Request.Json
+  mimeRender _ _ = { print: Request.json
                    , encode: encodeJson
                    }
 

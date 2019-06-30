@@ -5,12 +5,16 @@ module Servant.Client.Client
 
 import Prelude
 
+import Affjax as Affjax
+import Affjax.RequestBody (RequestBody)
+import Affjax.RequestHeader (RequestHeader(..))
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Except (ExceptT(..))
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ReaderT(..), ask)
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, jsonParser)
 import Data.Array (cons)
 import Data.Either (Either(..))
+import Data.Functor.Tagged (Tagged, untagged)
 import Data.HTTP.Method (Method(..), CustomMethod)
 import Data.Maybe (Maybe(..), maybe)
 import Data.String (joinWith)
@@ -19,28 +23,15 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Heterogeneous.Folding (class FoldlRecord, hfoldlWithIndex)
-import Network.HTTP.Affjax (AffjaxRequest)
-import Network.HTTP.Affjax as Affjax
-import Network.HTTP.Affjax.Request as Request
-import Network.HTTP.RequestHeader (RequestHeader(..))
 import Prim.RowList (class RowToList)
 import Servant.Api.Types (QueryParams(..), Captures(..), Required(..), Headers(..)) as Reexport
 import Servant.Api.Types (class IsMethod, class MimeRender, class MimeUnrender, class ToCapture, type (:>), Body, Capture, Captures, GET, HDRS, HeaderEntry(..), Headers(..), POST, QP, QueryParam, QueryParamEntry, QueryParams(..), Required(..), RouteProxy(..), S, formatQueryString, method, mimeRender, mimeUnrender, toCapture, kind Route)
-import Servant.Client.Request (AjaxError(..), ClientEnv(..), affjax, defaultRequest, getResult)
+import Servant.Client.Request (AjaxError(..), ClientEnv(..), affjax, getResult)
 import Type.Proxy (Proxy(..), Proxy2(..))
 
 --------------------------------------------------------------------------------
 -- | generic builder
 --------------------------------------------------------------------------------
-
-type Decoder parsed decoded = {parse :: String -> Either String parsed, decode :: parsed -> Either String decoded}
-type Encoder decoded parsed = {encode :: decoded -> parsed, print :: parsed -> Request.Request }
-
-jsonDecoder :: forall a. DecodeJson a => Decoder Json a
-jsonDecoder = {parse: jsonParser, decode: decodeJson}
-
-jsonEncoder :: forall a. EncodeJson a => Encoder a Json
-jsonEncoder = {encode: encodeJson, print: Request.Json}
 
 data NoContent = NoContent
 
@@ -51,7 +42,7 @@ instance decodeNoContent :: DecodeJson NoContent where
 newtype SuspendedRoute =
   SuspendedRoute { queryString :: Maybe String
                  , path :: Array String
-                 , body :: Maybe Request.Request
+                 , body :: Maybe RequestBody
                  , headers :: Array (Tuple String String)
                  }
 
@@ -64,7 +55,7 @@ defaultSuspendedRoute = SuspendedRoute { queryString: Nothing
 
 class RunClient m where
   -- | How to make a request.
-  runRequest :: Affjax.AffjaxRequest -> m (Affjax.AffjaxResponse String)
+  runRequest :: forall a. Affjax.Request a -> m (Affjax.Response a)
 
 instance defaultRunClient :: (MonadAff m, MonadError AjaxError m) => RunClient m where
   runRequest = affjax
@@ -86,9 +77,9 @@ else instance hasClientCapture
             , IsSymbol s
             , ToCapture a
             )
-         => HasClient (Capture s a :> r) m (a -> f) where
-  buildClientRoute (RouteProxy :: RouteProxy (Capture s a :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) a  ->
-    let pathComponent = toCapture a
+         => HasClient (Capture s a :> r) m (Tagged (SProxy s) a -> f) where
+  buildClientRoute (RouteProxy :: RouteProxy (Capture s a :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) a ->
+    let pathComponent = toCapture $ untagged a
     in buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { path = cons pathComponent route.path}
 
 else instance hasClientBody
@@ -130,14 +121,19 @@ else instance hasClientVerb
   buildClientRoute r@(RouteProxy :: RouteProxy (verb ct a)) (Proxy2 :: Proxy2 m) = \(SuspendedRoute route) -> do
     ClientEnv clientEnv <- ask
     let apiURL = clientEnv.protocol <> ":" <> clientEnv.baseURL
-        {parse, decode} = mimeUnrender (Proxy :: Proxy a) (Proxy :: Proxy ct)
-        affReq = defaultRequest
-          { method = Left $ method r
-          , url = apiURL <> (joinWith "/" route.path) <> maybe "" ("?" <> _) route.queryString
-          , headers = defaultRequest.headers <> map (\(Tuple k v) -> RequestHeader k v) route.headers
+        {responseFormat, decode} = mimeUnrender (Proxy :: Proxy a) (Proxy :: Proxy ct)
+        affReq =
+          { method: Left $ method r
+          , url: apiURL <> (joinWith "/" route.path) <> maybe "" ("?" <> _) route.queryString
+          , headers: map (\(Tuple k v) -> RequestHeader k v) route.headers
+          , content: route.body
+          , responseFormat
+          , password: Nothing
+          , username: Nothing
+          , withCredentials: false
           }
     affResp <- runRequest affReq
-    getResult affReq parse decode affResp
+    getResult affReq decode affResp
 
 type ClientM = ReaderT ClientEnv (ExceptT AjaxError Aff)
 
@@ -165,7 +161,7 @@ type TestPostR =
   :> POST Json NoContent
 
 testPost
-  :: Int
+  :: Tagged (SProxy "userID") Int
   -> String
   -> Headers ("AuthToken" :: String)
   -> ClientM NoContent
