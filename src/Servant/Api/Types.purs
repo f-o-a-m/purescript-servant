@@ -5,8 +5,9 @@ module Servant.Api.Types
   , type (:>)
   , S
   , Capture
+  , Body
   , QP
-  , Headers
+  , HDRS
   , GET
   , POST
   , DELETE
@@ -28,7 +29,7 @@ module Servant.Api.Types
   , queryParam1
   , formatQueryString
   , Headers(..)
-  , HeaderEntry
+  , HeaderEntry(..)
   , noHeaders
   , class ToHeader
   , toHeader
@@ -36,6 +37,8 @@ module Servant.Api.Types
   , method
   , class MimeUnrender
   , mimeUnrender
+  , class MimeRender
+  , mimeRender
   ) where
 
 import Prelude
@@ -67,13 +70,13 @@ infixr 6 type RouteCons as :>
 foreign import data S :: Symbol -> Route
 foreign import data Capture :: Symbol -> Type -> Route
 foreign import data QP :: #Type -> Route
-foreign import data Body :: Type -> Route
+foreign import data Body :: Type -> Type -> Route
 
 foreign import data GET :: Type -> Type -> Route
 foreign import data POST :: Type -> Type -> Route
 foreign import data DELETE :: Type -> Type -> Route
 
-foreign import data Header :: #Type -> Route
+foreign import data HDRS :: #Type -> Route
 
 
 {-
@@ -202,7 +205,7 @@ data RouteProxy (r :: Route) = RouteProxy
 --  , ToCapture c
 --  ) => RouteBuilder (Capture s c :> r) as params headers body response where
 --  buildRoute _ (Captures captures) params headers =
---    let c = toCapture $ get (SProxy :: SProxy s) captures
+--    let c = 
 --        (cs :: Record cs) = delete (SProxy :: SProxy s) captures
 --        SuspendedRoute route = buildRoute (RouteProxy :: RouteProxy r) (Captures cs) params headers
 --    in SuspendedRoute route {path = cons c route.path}

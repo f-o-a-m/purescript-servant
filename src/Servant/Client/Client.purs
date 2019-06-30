@@ -18,14 +18,14 @@ import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
-import Heterogeneous.Folding (class FoldlRecord)
+import Heterogeneous.Folding (class FoldlRecord, hfoldlWithIndex)
 import Network.HTTP.Affjax (AffjaxRequest)
 import Network.HTTP.Affjax as Affjax
 import Network.HTTP.Affjax.Request as Request
 import Network.HTTP.RequestHeader (RequestHeader(..))
 import Prim.RowList (class RowToList)
 import Servant.Api.Types (QueryParams(..), Captures(..), Required(..), Headers(..)) as Reexport
-import Servant.Api.Types (class IsMethod, class MimeUnrender, type (:>), Captures, GET, Headers, QP, QueryParam, QueryParamEntry, QueryParams(..), Required(..), RouteProxy(..), S, formatQueryString, method, mimeUnrender, kind Route)
+import Servant.Api.Types (class IsMethod, class MimeRender, class MimeUnrender, class ToCapture, type (:>), Body, Capture, Captures, GET, HDRS, HeaderEntry(..), Headers(..), QP, QueryParam, QueryParamEntry, QueryParams(..), Required(..), RouteProxy(..), S, formatQueryString, method, mimeRender, mimeUnrender, toCapture, kind Route)
 import Servant.Client.Request (AjaxError(..), ClientEnv(..), affjax, defaultRequest, getResult)
 import Type.Proxy (Proxy(..), Proxy2(..))
 
@@ -82,6 +82,25 @@ instance hasClientPathComponent
     let pathComponent = reflectSymbol (SProxy :: SProxy s)
     in buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { path = cons pathComponent route.path}
 
+else instance hasClientCapture
+         :: ( HasClient r m f
+            , IsSymbol s
+            , ToCapture a
+            )
+         => HasClient (Capture s a :> r) m (a -> f) where
+  buildClientRoute (RouteProxy :: RouteProxy (Capture s a :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) a  ->
+    let pathComponent = toCapture a
+    in buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { path = cons pathComponent route.path}
+
+else instance hasClientBody
+         :: ( HasClient r m f
+            , MimeRender ct body
+            )
+         => HasClient (Body ct body :> r) m (body -> f) where
+  buildClientRoute (RouteProxy :: RouteProxy (Body ct body :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) body ->
+    let {print, encode} = mimeRender (Proxy :: Proxy body) (Proxy :: Proxy ct)
+    in buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { body = Just $ print $ encode body }
+
 else instance hasClientQPs
          :: ( HasClient r m f
             , RowToList params paramsList
@@ -90,6 +109,15 @@ else instance hasClientQPs
          => HasClient (QP params :> r) m (QueryParams params -> f) where
   buildClientRoute (RouteProxy :: RouteProxy (QP params :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) params  ->
     buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { queryString = Just $ formatQueryString params }
+
+else instance hasClientHeaders
+         :: ( HasClient r m f
+            , RowToList headers headersList
+            , FoldlRecord HeaderEntry (Array (Tuple String String)) headersList headers (Array (Tuple String String))
+            )
+         => HasClient (HDRS headers :> r) m (Headers headers -> f) where
+  buildClientRoute (RouteProxy :: RouteProxy (HDRS headers :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) (Headers hdrs)  ->
+    buildClientRoute (RouteProxy :: RouteProxy r) p $ SuspendedRoute route { headers = hfoldlWithIndex HeaderEntry ([] :: Array (Tuple String String)) hdrs}
 
 else instance hasClientVerb
          :: ( IsMethod (verb ct a)
