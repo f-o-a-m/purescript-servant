@@ -25,7 +25,7 @@ import Network.HTTP.Affjax.Request as Request
 import Network.HTTP.RequestHeader (RequestHeader(..))
 import Prim.RowList (class RowToList)
 import Servant.Api.Types (QueryParams(..), Captures(..), Required(..), Headers(..)) as Reexport
-import Servant.Api.Types (class IsMethod, class MimeRender, class MimeUnrender, class ToCapture, type (:>), Body, Capture, Captures, GET, HDRS, HeaderEntry(..), Headers(..), QP, QueryParam, QueryParamEntry, QueryParams(..), Required(..), RouteProxy(..), S, formatQueryString, method, mimeRender, mimeUnrender, toCapture, kind Route)
+import Servant.Api.Types (class IsMethod, class MimeRender, class MimeUnrender, class ToCapture, type (:>), Body, Capture, Captures, GET, HDRS, HeaderEntry(..), Headers(..), POST, QP, QueryParam, QueryParamEntry, QueryParams(..), Required(..), RouteProxy(..), S, formatQueryString, method, mimeRender, mimeUnrender, toCapture, kind Route)
 import Servant.Client.Request (AjaxError(..), ClientEnv(..), affjax, defaultRequest, getResult)
 import Type.Proxy (Proxy(..), Proxy2(..))
 
@@ -43,10 +43,9 @@ jsonEncoder :: forall a. EncodeJson a => Encoder a Json
 jsonEncoder = {encode: encodeJson, print: Request.Json}
 
 data NoContent = NoContent
-noContentDecoder :: Decoder String NoContent
-noContentDecoder = {parse: pure, decode: \i -> if i == "" then Right NoContent else Left "Expected no content but got some."}
-noContentEncoder :: Encoder NoContent String
-noContentEncoder = {encode: const "", print: Request.String}
+
+instance decodeNoContent :: DecodeJson NoContent where
+  decodeJson = const $ pure NoContent
 
 
 newtype SuspendedRoute =
@@ -140,17 +139,15 @@ else instance hasClientVerb
     affResp <- runRequest affReq
     getResult affReq parse decode affResp
 
-
+type ClientM = ReaderT ClientEnv (ExceptT AjaxError Aff)
 
 type TestGetR =
-        S "photos"
-     :> QP ( users :: Array Int
-           , from :: Maybe String
-           , to :: Required String
-           )
-     :> GET Json String
-
-type ClientM = ReaderT ClientEnv (ExceptT AjaxError Aff)
+  S "photos"
+  :> QP ( users :: Array Int
+        , from :: Maybe String
+        , to :: Required String
+        )
+  :> GET Json String
 
 testGet
   :: QueryParams ( users :: Array Int
@@ -159,6 +156,20 @@ testGet
                  )
   -> ClientM String
 testGet = buildClientRoute (RouteProxy :: RouteProxy TestGetR) (Proxy2 :: Proxy2 ClientM) $ defaultSuspendedRoute
+
+type TestPostR =
+     S "photos"
+  :> Capture "userID" Int
+  :> Body Json String
+  :> HDRS ("AuthToken" :: String)
+  :> POST Json NoContent
+
+testPost
+  :: Int
+  -> String
+  -> Headers ("AuthToken" :: String)
+  -> ClientM NoContent
+testPost = buildClientRoute (RouteProxy :: RouteProxy TestPostR) (Proxy2 :: Proxy2 ClientM) $ defaultSuspendedRoute
 
 --buildRequest_
 --  :: forall m route captures params headers body response parsed.

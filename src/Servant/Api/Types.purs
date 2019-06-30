@@ -225,6 +225,9 @@ newtype Captures r = Captures (Record r)
 noCaptures :: Captures ()
 noCaptures = Captures {}
 
+instance toCaptureInt :: ToCapture Int where
+  toCapture = show
+
 --------------------------------------------------------------------------------
 -- Headers
 --------------------------------------------------------------------------------
@@ -236,6 +239,9 @@ noHeaders = Headers {}
 
 class ToHeader a where
   toHeader :: a -> String
+
+instance toHeaderString :: ToHeader String where
+  toHeader = identity
 
 data HeaderEntry = HeaderEntry
 
