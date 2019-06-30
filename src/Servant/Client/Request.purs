@@ -94,7 +94,8 @@ makeAjaxError req desc = AjaxError { request : req
                                    , description : desc
                                    }
 
-type ClientEnv = { protocol :: String, baseURL :: String }
+newtype ClientEnv =
+  ClientEnv { protocol :: String, baseURL :: String }
 
 runRequest
   :: forall m a.
