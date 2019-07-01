@@ -53,6 +53,7 @@ runClientM env (ClientM m) = runReaderT m env # runExceptT
 -- Core types
 --------------------------------------------------------------------------------
 
+-- newtypes
 newtype Username = Username String
 
 instance encodeJsonUsername :: EncodeJson Username where
@@ -61,9 +62,18 @@ instance encodeJsonUsername :: EncodeJson Username where
 instance decodeJsonUsername :: DecodeJson Username where
   decodeJson x = Username <$> decodeJson x
 
-instance toCaptureUsername :: API.ToCapture Username where
-  toCapture (Username u) = u
+newtype PhotoID = PhotoID String
 
+instance encodeJsonPhotoID :: EncodeJson PhotoID where
+  encodeJson (PhotoID a) = encodeJson a
+
+instance decodeJsonPhotoID :: DecodeJson PhotoID where
+  decodeJson x = PhotoID <$> decodeJson x
+
+instance toCapturePhotoID :: API.ToCapture PhotoID where
+  toCapture (PhotoID a) = a
+
+-- data
 newtype Photo =
   Photo { username :: Username
         , photoID :: Int
@@ -86,14 +96,14 @@ instance decodeJsonPhoto :: DecodeJson Photo where
 -- Capture and PathComponent
 --------------------------------------------------------------------------------
 
-type GetPhotosByUsername =
+type GetPhotoByID =
      API.S "photos"
-  :> API.CAP "username" Username
-  :> API.GET Json (Array Photo)
+  :> API.CAP "photoID" PhotoID
+  :> API.GET Json Photo
 
-getPhotosByUsername :: API.Capture "username" Username -> ClientM (Array Photo)
-getPhotosByUsername =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy GetPhotosByUsername)
+getPhotoByID :: API.Capture "photoID" PhotoID -> ClientM Photo
+getPhotoByID =
+  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy GetPhotoByID)
 
 --------------------------------------------------------------------------------
 -- Query Params
