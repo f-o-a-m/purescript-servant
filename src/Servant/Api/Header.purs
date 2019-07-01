@@ -1,5 +1,5 @@
 module Servant.API.Header
-  ( HDRS
+  ( HDRs
   , Headers(..)
   , class ToHeader
   , toHeader
@@ -16,7 +16,7 @@ import Heterogeneous.Folding (class FoldingWithIndex, class FoldlRecord, hfoldlW
 import Prim.RowList (class RowToList)
 import Servant.API.Route (kind Route)
 
-foreign import data HDRS :: #Type -> Route
+foreign import data HDRs :: #Type -> Route
 
 newtype Headers r = Headers (Record r)
 

@@ -1,4 +1,4 @@
-module Servant.Client.Client where
+module Servant.Client.HasClient where
 
 import Prelude
 
@@ -16,16 +16,12 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff)
 import Heterogeneous.Folding (class FoldlRecord)
 import Prim.RowList (class RowToList)
-import Servant.API.Types as API
-import Servant.API.Types (type (:>))
+import Servant.API as API
+import Servant.API (type (:>))
 import Servant.Client.Error (AjaxError)
 import Servant.Client.Request (ClientEnv(..), parseResult)
 import Servant.Client.Request as ClientRequest
 import Type.Proxy (Proxy(..), Proxy2(..))
-
---------------------------------------------------------------------------------
--- | generic builder
---------------------------------------------------------------------------------
 
 newtype SuspendedRoute =
   SuspendedRoute { queryString :: Maybe String
@@ -93,8 +89,8 @@ else instance hasClientHeaders
             , RowToList headers headersList
             , FoldlRecord API.HeaderEntry (Array (Tuple String String)) headersList headers (Array (Tuple String String))
             )
-         => HasClient (API.HDRS headers :> r) m (API.Headers headers -> f) where
-  buildClientRoute (API.RouteProxy :: API.RouteProxy (API.HDRS headers :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) hdrs  ->
+         => HasClient (API.HDRs headers :> r) m (API.Headers headers -> f) where
+  buildClientRoute (API.RouteProxy :: API.RouteProxy (API.HDRs headers :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) hdrs  ->
     buildClientRoute (API.RouteProxy :: API.RouteProxy r) p $ SuspendedRoute route { headers = API.foldHeaders hdrs}
 
 else instance hasClientVerb

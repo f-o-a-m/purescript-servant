@@ -1,4 +1,4 @@
-module Servant.API.Types
+module Servant.API
   ( module Body
   , module Capture
   , module Header
@@ -12,7 +12,7 @@ module Servant.API.Types
 
 import Servant.API.Body (Body) as Body
 import Servant.API.Capture (class ToCapture, CAP, Capture, capture, toCapture, uncapture) as Capture
-import Servant.API.Header (class ToHeader, HDRS, HeaderEntry, Headers(..), foldHeaders, toHeader) as Header
+import Servant.API.Header (class ToHeader, HDRs, HeaderEntry, Headers(..), foldHeaders, toHeader) as Header
 import Servant.API.Method (class IsMethod, DELETE, GET, POST, method) as Method
 import Servant.API.MimeRender (class MimeRender, class MimeUnrender, mimeRender, mimeUnrender) as MimeRender
 import Servant.API.NoContent (NoContent) as NoContent
