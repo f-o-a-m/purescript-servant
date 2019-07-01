@@ -15,16 +15,20 @@ import Data.Exists (Exists, mkExists, runExists)
 import Data.Lens (Lens', lens)
 
 newtype AjaxError' a =
-  AjaxError { request :: Affjax.Request a
-            , description :: ErrorDescription
-            }
+  AjaxError' { request :: Affjax.Request a
+             , description :: ErrorDescription
+             }
+
+newtype AjaxError = AjaxError (Exists AjaxError')
+
+unAjaxError :: AjaxError -> Exists AjaxError'
+unAjaxError (AjaxError e) = e
 
 errorDescription :: Lens' AjaxError ErrorDescription
 errorDescription =
-  lens (runExists \(AjaxError {description}) -> description)
-    (\err d -> runExists (\(AjaxError ae) -> mkExists $ AjaxError ae {description = d}) err)
+  lens (unAjaxError >>> runExists \(AjaxError' {description}) -> description)
+    (\(AjaxError err) d -> runExists (\(AjaxError' ae) -> AjaxError $ mkExists $ AjaxError' ae {description = d}) err)
 
-type AjaxError = Exists AjaxError'
 
 data ErrorDescription =
     UnexpectedHTTPStatus StatusCode
@@ -33,10 +37,10 @@ data ErrorDescription =
   | ConnectionError String
 
 makeAjaxError :: forall a. Affjax.Request a -> ErrorDescription -> AjaxError
-makeAjaxError req desc = mkExists $
-  AjaxError { request : req
-            , description : desc
-            }
+makeAjaxError req desc = AjaxError <<< mkExists $
+  AjaxError' { request : req
+             , description : desc
+             }
 
 foreign import unsafeToString :: forall obj. obj -> String
 

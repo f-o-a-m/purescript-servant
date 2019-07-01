@@ -12,6 +12,7 @@
     "purescript-affjax": "^9.0.0"
   },
   "devDependencies": {
-    "purescript-console": "^4.2.0"
+    "purescript-console": "^4.2.0",
+    "purescript-node-http": "^5.0.1"
   }
 }

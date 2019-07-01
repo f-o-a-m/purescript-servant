@@ -1,6 +1,8 @@
 module Servant.Client.Request
   ( ClientEnv(..)
+  , class RunRequest
   , runRequest
+  , defaultRunRequest
   , parseResult
   ) where
 
@@ -20,13 +22,17 @@ import Servant.Client.Error (AjaxError, ErrorDescription(..), makeAjaxError)
 newtype ClientEnv =
   ClientEnv { protocol :: String, baseURL :: String }
 
+class RunRequest m where
+  -- | How to make a request.
+  runRequest :: forall a. Affjax.Request a -> m (Affjax.Response a)
+
 -- | Do an Affjax.affjax call but report Aff exceptions in our own MonadError
-runRequest :: forall m a
+defaultRunRequest :: forall m a
    . MonadError (AjaxError) m
   => MonadAff m
   => Affjax.Request a
   -> m (Affjax.Response a)
-runRequest req = do
+defaultRunRequest req = do
    eRes <- liftAff (try $ Affjax.request req)
    case eRes of
      Left err -> throwError $ makeAjaxError req $ ConnectionError (message err)
