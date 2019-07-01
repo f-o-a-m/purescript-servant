@@ -1,4 +1,11 @@
-module Servant.Client.HasClient where
+module Servant.Client.HasClient
+  ( class RunClient
+  , runRequest
+  , class HasClient
+  , buildClientRoute
+  , SuspendedRoute
+  , defaultSuspendedRoute
+  ) where
 
 import Prelude
 
@@ -16,8 +23,8 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff)
 import Heterogeneous.Folding (class FoldlRecord)
 import Prim.RowList (class RowToList)
-import Servant.API as API
 import Servant.API (type (:>))
+import Servant.API as API
 import Servant.Client.Error (AjaxError)
 import Servant.Client.Request (ClientEnv(..), parseResult)
 import Servant.Client.Request as ClientRequest
