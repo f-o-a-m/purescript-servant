@@ -3,6 +3,8 @@ module Servant.API.QueryParam
   , QueryParams(..)
   , Required(..)
   , QueryParam
+  , class QueryParam1
+  , queryParam1
   , QueryParamEntry
   , formatQueryString
   , class EncodeQueryParam

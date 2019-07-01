@@ -9,8 +9,9 @@
   "dependencies": {
     "purescript-argonaut": "^6.0.0",
     "purescript-heterogeneous": "^0.4.1",
-    "purescript-affjax": "^9.0.0",
-    "purescript-tagged": "^3.0.0"
+    "purescript-affjax": "^9.0.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "purescript-console": "^4.2.0"
+  }
 }

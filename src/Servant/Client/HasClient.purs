@@ -125,37 +125,3 @@ else instance hasClientVerb
           }
     affResp <- runRequest affReq
     parseResult affReq decode affResp
-
-{-
-type ClientM = ReaderT ClientEnv (ExceptT AjaxError Aff)
-
-type TestGetR =
-  S "photos"
-  :> QPs ( users :: Array Int
-         , from :: Maybe String
-         , to :: Required String
-         )
-  :> GET Json String
-
-testGet
-  :: QueryParams ( users :: Array Int
-                 , from :: Maybe String
-                 , to :: Required String
-                 )
-  -> ClientM String
-testGet = buildClientRoute (RouteProxy :: RouteProxy TestGetR) (Proxy2 :: Proxy2 ClientM) $ defaultSuspendedRoute
-
-type TestPostR =
-     S "photos"
-  :> Capture "userID" Int
-  :> Body Json String
-  :> HDRS ("AuthToken" :: String)
-  :> POST Json NoContent
-
-testPost
-  :: Tagged (SProxy "userID") Int
-  -> String
-  -> Headers ("AuthToken" :: String)
-  -> ClientM NoContent
-testPost = buildClientRoute (RouteProxy :: RouteProxy TestPostR) (Proxy2 :: Proxy2 ClientM) $ defaultSuspendedRoute
--}
