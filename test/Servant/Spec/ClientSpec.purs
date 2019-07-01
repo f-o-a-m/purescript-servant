@@ -3,13 +3,15 @@ module Servant.Spec.ClientSpec where
 import Prelude
 
 import Control.Monad.Error.Class (class MonadError, class MonadThrow)
-import Control.Monad.Except (ExceptT)
-import Control.Monad.Reader (class MonadAsk, ReaderT)
+import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Reader (class MonadAsk, ReaderT, runReaderT)
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, jsonEmptyObject, (.:), (:=), (~>))
+import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
+import Effect.Class (class MonadEffect)
 import Effect.Class.Console (log)
 import Servant.API (type (:>))
 import Servant.API as API
@@ -22,8 +24,9 @@ spec = do
 
 
 --------------------------------------------------------------------------------
--- Core types
+-- ClientM
 --------------------------------------------------------------------------------
+
 
 newtype ClientM a = ClientM (ReaderT Client.ClientEnv (ExceptT Client.AjaxError Aff) a)
 
@@ -32,6 +35,7 @@ derive newtype instance applyClientM :: Apply ClientM
 derive newtype instance applicativeClientM :: Applicative ClientM
 derive newtype instance bindClientM :: Bind ClientM
 derive newtype instance monadClientM :: Monad ClientM
+derive newtype instance monadEffClientM :: MonadEffect ClientM
 derive newtype instance monadAffClientM :: MonadAff ClientM
 derive newtype instance monadAskClientM :: MonadAsk Client.ClientEnv ClientM
 derive newtype instance monadThrowClientM :: MonadThrow Client.AjaxError ClientM
@@ -39,6 +43,15 @@ derive newtype instance monadErrorClientM :: MonadError Client.AjaxError ClientM
 
 instance runClientClientM :: Client.RunRequest ClientM where
   runRequest = Client.defaultRunRequest
+
+runClientM
+  :: Client.ClientEnv
+  -> (forall a. ClientM a -> Aff (Either Client.AjaxError a))
+runClientM env (ClientM m) = runReaderT m env # runExceptT
+
+--------------------------------------------------------------------------------
+-- Core types
+--------------------------------------------------------------------------------
 
 newtype Username = Username String
 
