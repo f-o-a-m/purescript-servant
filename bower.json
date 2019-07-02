@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "purescript-console": "^4.2.0",
-    "purescript-node-http": "^5.0.1"
+    "purescript-node-http": "^5.0.1",
+    "purescript-avar": "^3.0.0"
   }
 }

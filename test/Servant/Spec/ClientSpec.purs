@@ -5,7 +5,7 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError, class MonadThrow)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.Reader (class MonadAsk, ReaderT, runReaderT)
-import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, jsonEmptyObject, (.:), (:=), (~>))
+import Data.Argonaut (Json)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
 import Effect (Effect)
@@ -16,6 +16,7 @@ import Effect.Class.Console (log)
 import Servant.API (type (:>))
 import Servant.API as API
 import Servant.Client as Client
+import Servant.Spec.Types (Username, PhotoID, Photo)
 
 
 spec :: Effect Unit
@@ -50,49 +51,6 @@ runClientM
 runClientM env (ClientM m) = runReaderT m env # runExceptT
 
 --------------------------------------------------------------------------------
--- Core types
---------------------------------------------------------------------------------
-
--- newtypes
-newtype Username = Username String
-
-instance encodeJsonUsername :: EncodeJson Username where
-  encodeJson (Username u) = encodeJson u
-
-instance decodeJsonUsername :: DecodeJson Username where
-  decodeJson x = Username <$> decodeJson x
-
-newtype PhotoID = PhotoID String
-
-instance encodeJsonPhotoID :: EncodeJson PhotoID where
-  encodeJson (PhotoID a) = encodeJson a
-
-instance decodeJsonPhotoID :: DecodeJson PhotoID where
-  decodeJson x = PhotoID <$> decodeJson x
-
-instance toCapturePhotoID :: API.ToCapture PhotoID where
-  toCapture (PhotoID a) = a
-
--- data
-newtype Photo =
-  Photo { username :: Username
-        , photoID :: Int
-        }
-
-instance encodeJsonPhoto :: EncodeJson Photo where
-  encodeJson (Photo d) =
-    "username" := d.username ~>
-    "photoID" := d.photoID ~>
-    jsonEmptyObject
-
-instance decodeJsonPhoto :: DecodeJson Photo where
-  decodeJson obj = do
-    o <- decodeJson obj
-    username <- o .: "username"
-    photoID <- o .: "photoID"
-    pure $ Photo {username, photoID}
-
---------------------------------------------------------------------------------
 -- Capture and PathComponent
 --------------------------------------------------------------------------------
 
@@ -109,17 +67,18 @@ getPhotoByID =
 -- Query Params
 --------------------------------------------------------------------------------
 
-newtype Date = Date String
+newtype Date = Date Int
 
 instance encodeQueryParamData :: API.EncodeQueryParam Date where
-  encodeQueryParam (Date d) = d
+  encodeQueryParam (Date d) = show d
 
 type SearchPhotos =
      API.S "photos"
+  :> API.S "search"
   :> API.QPs ( fromDate :: Maybe Date
              , toDate :: Maybe Date
              , username :: Array String
-             , page :: API.Required Int
+             , maxCount :: API.Required Int
              )
   :> API.GET Json (Array Photo)
 
@@ -127,7 +86,7 @@ searchPhotos
   :: API.QueryParams ( fromDate :: Maybe Date
                      , toDate :: Maybe Date
                      , username :: Array String
-                     , page :: API.Required Int
+                     , maxCount :: API.Required Int
                      )
   -> ClientM (Array Photo)
 searchPhotos =
@@ -139,7 +98,7 @@ searchPhotos =
 --------------------------------------------------------------------------------
 
 type PostPublicPhoto =
-     API.S "photo"
+     API.S "photos"
   :> API.S "public"
   :> API.Body Json Photo
   :> API.POST Json API.NoContent
@@ -160,7 +119,7 @@ instance toHeaderAuthToken :: API.ToHeader AuthToken where
   toHeader (AuthToken at) = at
 
 type PostPrivatePhoto =
-     API.S "photo"
+     API.S "photos"
   :> API.S "private"
   :> API.Body Json Photo
   :> API.HDRs ("Authorization" :: AuthToken)
