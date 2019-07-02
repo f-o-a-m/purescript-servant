@@ -1,147 +1,65 @@
-module Servant.Spec.ClientSpec where
+module Servant.Spec.ClientSpec (spec, mkClientEnv) where
+
 
 import Prelude
 
-import Control.Monad.Error.Class (class MonadError, class MonadThrow)
-import Control.Monad.Except (ExceptT, runExceptT)
-import Control.Monad.Reader (class MonadAsk, ReaderT, runReaderT)
-import Data.Argonaut (Json)
-import Data.Either (Either)
-import Data.Maybe (Maybe)
+import Data.Bifunctor (lmap)
+import Data.Either (Either(..))
+import Data.Lens (view)
+import Data.Maybe (Maybe(..))
+import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Aff (Aff)
-import Effect.Aff.Class (class MonadAff)
-import Effect.Class (class MonadEffect)
-import Effect.Class.Console (log)
-import Servant.API (type (:>))
+import Effect.Class.Console as C
 import Servant.API as API
-import Servant.Client as Client
-import Servant.Spec.Types (Username, PhotoID, Photo)
+import Servant.Client (ClientEnv(..), ErrorDescription)
+import Servant.Client.Error (errorDescription)
+import Servant.Spec.PhotoClient (ClientM, getHome, getPhotoByID, postPublicPhoto, runClientM)
+import Servant.Spec.PhotoServer (startApp)
+import Servant.Spec.Types (Photo(..), Username(..))
+import Test.Spec (Spec, SpecT(..), beforeAll_, describe, it)
+import Test.Spec.Assertions (fail, shouldEqual)
 
+mkClientEnv :: Int -> ClientEnv
+mkClientEnv port =
+  ClientEnv { protocol: "http"
+            , baseURL: "//localhost:" <> show port <> "/"
+            }
 
-spec :: Effect Unit
-spec = do
-  log "You should add some tests."
+runClientM'
+  :: ClientEnv
+  -> (forall a. ClientM a -> Aff (Either ErrorDescription a))
+runClientM' env action = do
+  eRes <- runClientM env action
+  pure $ lmap (view errorDescription) eRes
 
+alice :: Username
+alice = Username "Alice"
 
---------------------------------------------------------------------------------
--- ClientM
---------------------------------------------------------------------------------
+bob :: Username
+bob = Username "Bob"
 
+spec :: ClientEnv -> SpecT Aff Unit Aff Unit
+spec clientEnv = do
 
-newtype ClientM a = ClientM (ReaderT Client.ClientEnv (ExceptT Client.AjaxError Aff) a)
+  describe "Path Components" do
+    it "Can reach /home" do
+      eRes <- runClientM' clientEnv getHome
+      case eRes of
+        Right resp -> resp `shouldEqual` "home"
+        Left err -> fail (show err)
 
-derive newtype instance functorClientM :: Functor ClientM
-derive newtype instance applyClientM :: Apply ClientM
-derive newtype instance applicativeClientM :: Applicative ClientM
-derive newtype instance bindClientM :: Bind ClientM
-derive newtype instance monadClientM :: Monad ClientM
-derive newtype instance monadEffClientM :: MonadEffect ClientM
-derive newtype instance monadAffClientM :: MonadAff ClientM
-derive newtype instance monadAskClientM :: MonadAsk Client.ClientEnv ClientM
-derive newtype instance monadThrowClientM :: MonadThrow Client.AjaxError ClientM
-derive newtype instance monadErrorClientM :: MonadError Client.AjaxError ClientM
-
-instance runClientClientM :: Client.RunRequest ClientM where
-  runRequest = Client.defaultRunRequest
-
-runClientM
-  :: Client.ClientEnv
-  -> (forall a. ClientM a -> Aff (Either Client.AjaxError a))
-runClientM env (ClientM m) = runReaderT m env # runExceptT
-
-
---------------------------------------------------------------------------------
--- Path Component
---------------------------------------------------------------------------------
-
-type GetHome =
-     API.S "home"
-  :> API.GET Json String
-
-getHome :: ClientM String
-getHome =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy GetHome)
-
-
---------------------------------------------------------------------------------
--- Capture
---------------------------------------------------------------------------------
-
-type GetPhotoByID =
-     API.S "photos"
-  :> API.CAP "photoID" PhotoID
-  :> API.GET Json Photo
-
-getPhotoByID :: API.Capture "photoID" PhotoID -> ClientM Photo
-getPhotoByID =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy GetPhotoByID)
-
---------------------------------------------------------------------------------
--- Query Params
---------------------------------------------------------------------------------
-
-newtype Date = Date Int
-
-instance encodeQueryParamData :: API.EncodeQueryParam Date where
-  encodeQueryParam (Date d) = show d
-
-type SearchPhotos =
-     API.S "photos"
-  :> API.S "search"
-  :> API.QPs ( fromIndex :: Maybe Date
-             , toIndex :: Maybe Date
-             , username :: Array String
-             , maxCount :: API.Required Int
-             )
-  :> API.GET Json (Array Photo)
-
-searchPhotos
-  :: API.QueryParams ( fromIndex :: Maybe Date
-                     , toIndex :: Maybe Date
-                     , username :: Array String
-                     , maxCount :: API.Required Int
-                     )
-  -> ClientM (Array Photo)
-searchPhotos =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy SearchPhotos)
-
-
---------------------------------------------------------------------------------
--- Body
---------------------------------------------------------------------------------
-
-type PostPublicPhoto =
-     API.S "photos"
-  :> API.S "public"
-  :> API.Body Json Photo
-  :> API.POST Json API.NoContent
-
-postPublicPhoto
-  :: Photo
-  -> ClientM API.NoContent
-postPublicPhoto =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy PostPublicPhoto)
-
---------------------------------------------------------------------------------
--- Header
---------------------------------------------------------------------------------
-
-newtype AuthToken = AuthToken String
-
-instance toHeaderAuthToken :: API.ToHeader AuthToken where
-  toHeader (AuthToken at) = at
-
-type PostPrivatePhoto =
-     API.S "photos"
-  :> API.S "private"
-  :> API.Body Json Photo
-  :> API.HDRs ("Authorization" :: AuthToken)
-  :> API.POST Json API.NoContent
-
-postPrivatePhoto
-  :: Photo
-  -> API.Headers ("Authorization" :: AuthToken)
-  -> ClientM API.NoContent
-postPrivatePhoto =
-  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy PostPrivatePhoto)
+  describe "Capture" do
+    it "can post a public photo" do
+      let photo = Photo { username: alice
+                        , title: "foo"
+                        , photoID: Nothing
+                        }
+      eRes <- runClientM' clientEnv $ do
+        C.log $ "posting photo"
+        photoID <- postPublicPhoto photo
+        C.log $ show photoID
+        getPhotoByID $ API.capture (SProxy :: SProxy "photoID") photoID
+      case eRes of
+        Right (Photo {title}) -> title `shouldEqual` "foo"
+        Left err -> fail (show err)

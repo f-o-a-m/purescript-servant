@@ -15,6 +15,7 @@ import Data.Either (Either(..))
 import Data.Lens ((.~))
 import Data.Lens.Record (prop)
 import Data.Symbol (SProxy(..))
+import Debug.Trace as Trace
 import Effect.Aff (message, try)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Servant.Client.Error (AjaxError, ErrorDescription(..), makeAjaxError)
@@ -33,12 +34,15 @@ defaultRunRequest :: forall m a
   => Affjax.Request a
   -> m (Affjax.Response a)
 defaultRunRequest req = do
+   Trace.traceM req
    eRes <- liftAff (try $ Affjax.request req)
    case eRes of
      Left err -> throwError $ makeAjaxError req $ ConnectionError (message err)
-     Right res -> case res.body of
-       Right parsed -> pure $ res # prop (SProxy :: SProxy "body") .~ parsed
-       Left formatErr -> throwError $ makeAjaxError req $ ParseError formatErr
+     Right res -> do
+       Trace.traceM res
+       case res.body of
+         Right parsed -> pure $ res # prop (SProxy :: SProxy "body") .~ parsed
+         Left formatErr -> throwError $ makeAjaxError req $ ParseError formatErr
 
 parseResult
   :: forall parsed decoded m.

@@ -1,4 +1,4 @@
-module Servant.Spec.MockServer
+module Servant.Spec.PhotoServer
   ( startApp
   ) where
 
@@ -10,15 +10,15 @@ import Data.Either (Either(..))
 import Data.Int (fromString)
 import Data.Map (Map, insert)
 import Data.Maybe (Maybe(..), maybe)
-import Effect (Effect)
-import Effect.Aff (Aff, Error, error, launchAff_, message)
+import Debug.Trace as Trace
+import Effect.Aff (Aff, Error, error, message)
 import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
 import Node.Express.App (App, get, listenHttp, post, setProp, useOnError)
 import Node.Express.Handler (Handler, nextThrow)
-import Node.Express.Request (getBody, getQueryParam, getQueryParams, getRequestHeader, getRouteParam)
+import Node.Express.Request (getBody, getBody', getQueryParam, getQueryParams, getRequestHeader, getRouteParam)
 import Node.Express.Response (sendJson, setStatus)
 import Node.HTTP (Server)
 import Servant.API as API
@@ -40,10 +40,9 @@ appSetup state = do
   post "/photos/private" $ postPrivatePhotoHandler state
   useOnError errorHandler
 
-startApp :: Effect Unit
-startApp = launchAff_ do
+startApp :: Int -> Aff Server
+startApp port = do
   state <- AVar.new emptyPhotoDB
-  let port = 8081
   liftEffect $ listenHttp (appSetup state) port \_ ->
     log $ "Listening on " <> show port
 
@@ -85,12 +84,13 @@ searchPhotosHandler state = do
 
 postPublicPhotoHandler :: AppState -> Handler
 postPublicPhotoHandler state = do
+  getBody' >>= Trace.traceM
   ephoto <- runExcept <$> getBody
   case ephoto of
-    Left err -> nextThrow $ error "Couldn't parse Photo"
+    Left err -> nextThrow $ error ("Couldn't parse Photo: " <> show err)
     Right photo -> do
-      liftAff $ insertPublicPhoto photo state
-      sendJson API.NoContent
+      _id <- liftAff $ insertPublicPhoto photo state
+      sendJson $ PhotoID _id
 
 postPrivatePhotoHandler :: AppState -> Handler
 postPrivatePhotoHandler state = do
@@ -102,8 +102,8 @@ postPrivatePhotoHandler state = do
       case ephoto of
         Left err -> nextThrow $ error "Couldn't parse Photo"
         Right photo -> do
-          liftAff $ insertPrivatePhoto photo state
-          sendJson API.NoContent
+          _id <- liftAff $ insertPrivatePhoto photo state
+          sendJson $ PhotoID _id
 
 errorHandler :: Error -> Handler
 errorHandler err = do
@@ -123,19 +123,21 @@ newtype PhotoDB =
 emptyPhotoDB :: PhotoDB
 emptyPhotoDB = PhotoDB {publicPhotos : mempty, privatePhotos: mempty, index: 0}
 
-insertPublicPhoto :: Photo -> AVar.AVar PhotoDB -> Aff Unit
+insertPublicPhoto :: Photo -> AVar.AVar PhotoDB -> Aff Int
 insertPublicPhoto (Photo photo) dbVar = do
   PhotoDB db <- AVar.take dbVar
   let currentIndex = db.index
       photo' = Photo photo { photoID = Just $ PhotoID currentIndex }
   AVar.put (PhotoDB db {publicPhotos = cons photo' db.publicPhotos, index = db.index + 1}) dbVar
+  pure currentIndex
 
-insertPrivatePhoto :: Photo -> AVar.AVar PhotoDB -> Aff Unit
+insertPrivatePhoto :: Photo -> AVar.AVar PhotoDB -> Aff Int
 insertPrivatePhoto (Photo p@{username: Username u}) dbVar = do
   PhotoDB db <- AVar.take dbVar
   let currentIndex = db.index
       photo' = Photo p { photoID = Just $ PhotoID currentIndex }
   AVar.put (PhotoDB db {privatePhotos = insert u photo' db.privatePhotos, index = db.index + 1}) dbVar
+  pure currentIndex
 
 getPhotoById :: PhotoID -> AVar.AVar PhotoDB -> Aff (Maybe Photo)
 getPhotoById pid dbVar = do
@@ -153,7 +155,7 @@ searchPhotos fs dbVar = do
   pure $ (fFrom >>> fTo >>> fUsername >>> fCount) publicPhotos
 
 --------------------------------------------------------------------------------
--- filters
+-- search filters
 --------------------------------------------------------------------------------
 
 type Filters = Record ( fromIndex :: Maybe Int

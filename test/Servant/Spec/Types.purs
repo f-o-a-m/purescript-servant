@@ -38,6 +38,9 @@ newtype PhotoID = PhotoID Int
 instance eqPhotoID :: Eq PhotoID where
   eq (PhotoID a) (PhotoID b) = a == b
 
+instance showPhotoID :: Show PhotoID where
+  show (PhotoID pid) = show pid
+
 derive instance genericPhotoID :: Generic PhotoID _
 
 instance encodePhotoID :: Encode PhotoID where
@@ -58,6 +61,7 @@ instance toCapturePhotoID :: API.ToCapture PhotoID where
 -- data
 newtype Photo =
   Photo { username :: Username
+        , title :: String
         , photoID :: Maybe PhotoID
         }
 

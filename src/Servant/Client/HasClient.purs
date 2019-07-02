@@ -11,7 +11,7 @@ import Affjax.RequestBody (RequestBody)
 import Affjax.RequestHeader (RequestHeader(..))
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Reader (class MonadAsk, ask)
-import Data.Array (cons)
+import Data.Array (cons, snoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), maybe)
 import Data.String (joinWith)
@@ -49,7 +49,7 @@ instance hasClientPathComponent
          => HasClient (API.S s :> r) m f where
   buildClientRoute (API.RouteProxy :: API.RouteProxy (API.S s :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) ->
     let pathComponent = reflectSymbol (SProxy :: SProxy s)
-    in buildClientRoute (API.RouteProxy :: API.RouteProxy r) p $ SuspendedRoute route { path = cons pathComponent route.path}
+    in buildClientRoute (API.RouteProxy :: API.RouteProxy r) p $ SuspendedRoute route { path = route.path `snoc` pathComponent }
 
 else instance hasClientCapture
          :: ( HasClient r m f
@@ -59,7 +59,7 @@ else instance hasClientCapture
          => HasClient (API.CAP s a :> r) m (API.Capture s a -> f) where
   buildClientRoute (API.RouteProxy :: API.RouteProxy (API.CAP s a :> r)) p@(Proxy2 :: Proxy2 m) = \(SuspendedRoute route) a ->
     let pathComponent = API.toCapture $ API.uncapture a
-    in buildClientRoute (API.RouteProxy :: API.RouteProxy r) p $ SuspendedRoute route { path = cons pathComponent route.path}
+    in buildClientRoute (API.RouteProxy :: API.RouteProxy r) p $ SuspendedRoute route { path =  route.path `snoc` pathComponent}
 
 else instance hasClientBody
          :: ( HasClient r m f
