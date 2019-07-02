@@ -50,8 +50,22 @@ runClientM
   -> (forall a. ClientM a -> Aff (Either Client.AjaxError a))
 runClientM env (ClientM m) = runReaderT m env # runExceptT
 
+
 --------------------------------------------------------------------------------
--- Capture and PathComponent
+-- Path Component
+--------------------------------------------------------------------------------
+
+type GetHome =
+     API.S "home"
+  :> API.GET Json String
+
+getHome :: ClientM String
+getHome =
+  Client.makeClientRoute (API.RouteProxy :: API.RouteProxy GetHome)
+
+
+--------------------------------------------------------------------------------
+-- Capture
 --------------------------------------------------------------------------------
 
 type GetPhotoByID =
@@ -75,16 +89,16 @@ instance encodeQueryParamData :: API.EncodeQueryParam Date where
 type SearchPhotos =
      API.S "photos"
   :> API.S "search"
-  :> API.QPs ( fromDate :: Maybe Date
-             , toDate :: Maybe Date
+  :> API.QPs ( fromIndex :: Maybe Date
+             , toIndex :: Maybe Date
              , username :: Array String
              , maxCount :: API.Required Int
              )
   :> API.GET Json (Array Photo)
 
 searchPhotos
-  :: API.QueryParams ( fromDate :: Maybe Date
-                     , toDate :: Maybe Date
+  :: API.QueryParams ( fromIndex :: Maybe Date
+                     , toIndex :: Maybe Date
                      , username :: Array String
                      , maxCount :: API.Required Int
                      )
