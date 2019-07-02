@@ -13,7 +13,12 @@
   },
   "devDependencies": {
     "purescript-console": "^4.2.0",
-    "purescript-node-http": "^5.0.1",
-    "purescript-avar": "^3.0.0"
+    "purescript-avar": "^3.0.0",
+    "purescript-express": "^0.8.0"
+  },
+  "resolutions": {
+    "purescript-foreign-object": "^2.0.0",
+    "purescript-typelevel-prelude": "^3.0.0",
+    "purescript-record": "^1.0.0"
   }
 }
