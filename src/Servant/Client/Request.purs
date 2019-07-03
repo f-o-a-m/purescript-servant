@@ -20,7 +20,7 @@ import Servant.Client.Error (AjaxError, ErrorDescription(..), makeAjaxError)
 newtype ClientEnv =
   ClientEnv { protocol :: String, baseURL :: String }
 
--- | Do an Affjax.affjax call but report Aff exceptions in our own MonadError
+-- | Do an Affjax.request call but report Aff exceptions in our own MonadError
 runRequest :: forall m a
    . MonadError (AjaxError) m
   => MonadAff m
@@ -34,6 +34,9 @@ runRequest req = do
        Right parsed -> pure $ res # prop (SProxy :: SProxy "body") .~ parsed
        Left formatErr -> throwError $ makeAjaxError req $ ParseError formatErr
 
+-- | Parse the result from the respose body using the decoder. At this point the
+-- | response body has already been parsed into the 'ResponseFormat' type, e.g. Json,
+-- | and we are decoding from that.
 parseResult
   :: forall parsed decoded m.
      MonadError AjaxError m
