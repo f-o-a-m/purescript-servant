@@ -1,5 +1,5 @@
 module Servant.API.NoContent
-  ( NoContent
+  ( NoContent(..)
   ) where
 
 import Prelude
