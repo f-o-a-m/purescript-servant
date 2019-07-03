@@ -18,15 +18,13 @@ import Control.Monad.Reader (class MonadAsk, ReaderT, runReaderT)
 import Data.Argonaut (Json)
 import Data.Either (Either)
 import Data.Maybe (Maybe)
-import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import Effect.Class.Console (log)
 import Servant.API (type (:>))
 import Servant.API as API
 import Servant.Client as Client
-import Servant.Spec.Types (Username, PhotoID, Photo)
+import Servant.Spec.Types (Photo, PhotoID, Username)
 
 --------------------------------------------------------------------------------
 -- ClientM
@@ -91,10 +89,9 @@ instance encodeQueryParamData :: API.EncodeQueryParam Date where
 
 type SearchPhotos =
      API.S "photos"
-  :> API.S "search"
   :> API.QPs ( fromIndex :: Maybe Date
              , toIndex :: Maybe Date
-             , username :: Array String
+             , username :: Array Username
              , maxCount :: API.Required Int
              )
   :> API.GET Json (Array Photo)
@@ -102,7 +99,7 @@ type SearchPhotos =
 searchPhotos
   :: API.QueryParams ( fromIndex :: Maybe Date
                      , toIndex :: Maybe Date
-                     , username :: Array String
+                     , username :: Array Username
                      , maxCount :: API.Required Int
                      )
   -> ClientM (Array Photo)

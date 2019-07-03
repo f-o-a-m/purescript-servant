@@ -2,7 +2,6 @@ module Test.Main where
 
 import Prelude
 
-import Control.Monad (join)
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Servant.Spec.ClientSpec (mkClientEnv)

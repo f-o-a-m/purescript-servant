@@ -4,38 +4,61 @@ module Servant.Spec.PhotoServer
 
 import Prelude
 
-import Control.Monad.Except (runExcept)
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson)
 import Data.Array (cons, elem, filter, head, take)
 import Data.Either (Either(..))
+import Data.Function.Uncurried (Fn3)
 import Data.Int (fromString)
 import Data.Map (Map, insert)
 import Data.Maybe (Maybe(..), maybe)
-import Debug.Trace as Trace
+import Data.Newtype (un)
+import Effect (Effect)
 import Effect.Aff (Aff, Error, error, message)
+import Effect.Aff.AVar (AVar)
 import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
-import Node.Express.App (App, get, listenHttp, post, setProp, useOnError)
-import Node.Express.Handler (Handler, nextThrow)
-import Node.Express.Request (getBody, getBody', getQueryParam, getQueryParams, getRequestHeader, getRouteParam)
+import Foreign (Foreign, unsafeFromForeign)
+import Node.Express.App (App, get, listenHttp, post, setProp, useExternal, useOnError)
+import Node.Express.Handler (Handler, HandlerM, nextThrow)
+import Node.Express.Request (getBody', getQueryParam, getQueryParams, getRequestHeader, getRouteParam)
 import Node.Express.Response (sendJson, setStatus)
+import Node.Express.Types (Response, Request)
 import Node.HTTP (Server)
-import Servant.API as API
 import Servant.Spec.Types (Photo(..), PhotoID(..), Username(..))
-
 --------------------------------------------------------------------------------
 -- Application
 --------------------------------------------------------------------------------
+foreign import jsonBodyParser :: Fn3 Request Response (Effect Unit) (Effect Unit)
 
 type AppState = AVar.AVar PhotoDB
 
+-- NOTE we use this getBody and sendResponse so same decoders/encoders are used as by the client
+-- ideally we should not need this
+getBody :: forall a. DecodeJson a => HandlerM (Either String a)
+getBody =
+  -- we get the body as Foreign
+  getBody'
+    -- because we use jsonBodyParser it must be valid json object
+    -- ot express will fail before we get here so we coerce Foreign to Json type 
+    <#> (unsafeFromForeign :: Foreign -> Json)
+    -- and then we use `decodeJson`
+    >>> decodeJson
+
+
+sendResponse :: forall j. EncodeJson j => Int -> j -> HandlerM Unit
+sendResponse code resp = do
+  setStatus code
+  sendJson $ encodeJson resp
+
 appSetup :: AppState -> App
 appSetup state = do
+  useExternal jsonBodyParser
   setProp "json spaces" 4.0
   get "/home" getHome
   get "/photos/:photoID" $ getPhotoByIDHandler state
-  get "/photos/search" $ searchPhotosHandler state
+  get "/photos" $ searchPhotosHandler state
   post "/photos/public" $ postPublicPhotoHandler state
   post "/photos/private" $ postPrivatePhotoHandler state
   useOnError errorHandler
@@ -51,7 +74,7 @@ startApp port = do
 --------------------------------------------------------------------------------
 
 getHome :: Handler
-getHome = sendJson "home"
+getHome = sendResponse 200 "home"
 
 getPhotoByIDHandler :: AppState -> Handler
 getPhotoByIDHandler state = do
@@ -60,9 +83,9 @@ getPhotoByIDHandler state = do
     Just idParam -> do
       mPhoto <- liftAff $ getPhotoById (PhotoID idParam) state
       case mPhoto of
-        Nothing -> setStatus 404
-        Just photo -> sendJson photo
-    Nothing -> nextThrow $ error "photoID is required"
+        Nothing -> sendResponse 404 "oops"
+        Just photo -> sendResponse 200 photo
+    Nothing -> nextThrow $ error "photoID is required?"
 
 searchPhotosHandler :: AppState -> Handler
 searchPhotosHandler state = do
@@ -77,42 +100,50 @@ searchPhotosHandler state = do
     pure $ mmax >>= fromString
   username <- getQueryParams "username"
   case maxCount of
-    Nothing -> setStatus 421
+    Nothing -> sendResponse 421 "oops"
     Just _ -> do
       ps <- liftAff $ searchPhotos {fromIndex, toIndex, maxCount, username} state
-      sendJson ps
+      sendResponse 200 ps
 
 postPublicPhotoHandler :: AppState -> Handler
 postPublicPhotoHandler state = do
-  getBody' >>= Trace.traceM
-  ephoto <- runExcept <$> getBody
-  case ephoto of
-    Left err -> nextThrow $ error ("Couldn't parse Photo: " <> show err)
+  ePhoto <- getBody
+  case ePhoto of
+    Left err -> nextThrow $ error $ "Couldn't parse Photo: " <> err
     Right photo -> do
       _id <- liftAff $ insertPublicPhoto photo state
-      sendJson $ PhotoID _id
+      sendResponse 200 $ PhotoID _id
 
 postPrivatePhotoHandler :: AppState -> Handler
 postPrivatePhotoHandler state = do
+  log "postPrivatePhotoHandler"
   mAuthHeader <- getRequestHeader "Authorization"
+  log $ show mAuthHeader
   case mAuthHeader of
-    Nothing -> setStatus 403
+    Nothing -> sendResponse 403 "oops"
     Just username -> do
-      ephoto <- runExcept <$> getBody
-      case ephoto of
-        Left err -> nextThrow $ error "Couldn't parse Photo"
+      ePhoto <- getBody
+      log $ show ePhoto
+      case ePhoto of
+        Left err -> nextThrow $ error $ "Couldn't parse Photo: " <> err
         Right photo -> do
           _id <- liftAff $ insertPrivatePhoto photo state
-          sendJson $ PhotoID _id
+          sendResponse 200 $ PhotoID _id
 
 errorHandler :: Error -> Handler
 errorHandler err = do
-  setStatus 400
-  sendJson {error: message err}
+  sendResponse 400 {error: message err}
 
 --------------------------------------------------------------------------------
 -- | Mock DB
 --------------------------------------------------------------------------------
+
+overAVar :: forall r a. (a -> { res :: r, val :: a}) -> AVar a -> Aff r
+overAVar f var = do
+  v <- AVar.take var
+  let {res, val} = f v
+  AVar.put val var
+  pure res
 
 newtype PhotoDB =
   PhotoDB { publicPhotos :: Array Photo
@@ -124,35 +155,37 @@ emptyPhotoDB :: PhotoDB
 emptyPhotoDB = PhotoDB {publicPhotos : mempty, privatePhotos: mempty, index: 0}
 
 insertPublicPhoto :: Photo -> AVar.AVar PhotoDB -> Aff Int
-insertPublicPhoto (Photo photo) dbVar = do
-  PhotoDB db <- AVar.take dbVar
-  let currentIndex = db.index
-      photo' = Photo photo { photoID = Just $ PhotoID currentIndex }
-  AVar.put (PhotoDB db {publicPhotos = cons photo' db.publicPhotos, index = db.index + 1}) dbVar
-  pure currentIndex
+insertPublicPhoto (Photo photo) = overAVar \(PhotoDB db) ->
+  let
+    currentIndex = db.index
+    photo' = Photo photo { photoID = Just $ PhotoID currentIndex }
+  in 
+    { val: PhotoDB db {publicPhotos = cons photo' db.publicPhotos, index = db.index + 1}
+    , res: currentIndex
+    }
 
 insertPrivatePhoto :: Photo -> AVar.AVar PhotoDB -> Aff Int
-insertPrivatePhoto (Photo p@{username: Username u}) dbVar = do
-  PhotoDB db <- AVar.take dbVar
-  let currentIndex = db.index
-      photo' = Photo p { photoID = Just $ PhotoID currentIndex }
-  AVar.put (PhotoDB db {privatePhotos = insert u photo' db.privatePhotos, index = db.index + 1}) dbVar
-  pure currentIndex
+insertPrivatePhoto (Photo p@{username: Username u}) = overAVar \(PhotoDB db) ->
+  let
+    currentIndex = db.index
+    photo' = Photo p { photoID = Just $ PhotoID currentIndex }
+  in
+    { val: PhotoDB db {privatePhotos = insert u photo' db.privatePhotos, index = db.index + 1}
+    , res: currentIndex
+    }
 
 getPhotoById :: PhotoID -> AVar.AVar PhotoDB -> Aff (Maybe Photo)
-getPhotoById pid dbVar = do
-  PhotoDB {publicPhotos} <- AVar.take dbVar
-  pure $ head $
-    filter (\(Photo{photoID}) -> photoID == Just pid) publicPhotos
+getPhotoById pid = AVar.read >=> \(PhotoDB {publicPhotos}) ->
+  pure $ head $ filter (\(Photo{photoID}) -> photoID == Just pid) publicPhotos
 
 searchPhotos :: Filters -> AVar.AVar PhotoDB -> Aff (Array Photo)
-searchPhotos fs dbVar = do
-  PhotoDB {publicPhotos} <- AVar.take dbVar
-  let fFrom = maybe identity (\i -> filterByIndex (i < _)) fs.fromIndex
-      fTo = maybe identity (\i -> filterByIndex (i > _)) fs.toIndex
-      fUsername = maybe identity filterByUsername fs.username
-      fCount = maybe identity take fs.maxCount
-  pure $ (fFrom >>> fTo >>> fUsername >>> fCount) publicPhotos
+searchPhotos fs = AVar.read >=> \(PhotoDB {publicPhotos}) ->
+  let
+    fFrom = maybe identity (\i -> filterByIndex (i < _)) fs.fromIndex
+    fTo = maybe identity (\i -> filterByIndex (i > _)) fs.toIndex
+    fUsername = maybe identity filterByUsername fs.username
+    fCount = maybe identity take fs.maxCount
+  in pure $ (fFrom >>> fTo >>> fUsername >>> fCount) publicPhotos
 
 --------------------------------------------------------------------------------
 -- search filters
@@ -172,4 +205,4 @@ filterByIndex p = filter \(Photo photo) ->
 
 filterByUsername :: Array String -> Array Photo -> Array Photo
 filterByUsername us = filter \(Photo photo) ->
-  photo.username `elem` map Username us
+  un Username photo.username `elem` us

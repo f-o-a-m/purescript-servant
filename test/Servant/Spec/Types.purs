@@ -4,9 +4,12 @@ import Prelude
 
 import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson)
 import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe)
+import Data.Newtype (class Newtype)
 import Foreign.Class (class Decode, class Encode)
 import Foreign.Generic (defaultOptions, genericDecode, genericEncode)
+import Servant.API (class EncodeQueryParam)
 import Servant.API as API
 
 --------------------------------------------------------------------------------
@@ -15,11 +18,11 @@ import Servant.API as API
 
 -- newtypes
 newtype Username = Username String
-
-instance eqUsername :: Eq Username where
-  eq (Username u1) (Username u2) = u1 == u2
-
+derive instance newtypeUsername :: Newtype Username _
 derive instance genericUsername :: Generic Username _
+instance showUsername :: Show Username where show = genericShow
+derive newtype instance eqUsername :: Eq Username
+derive newtype instance encodeQueryParamUsername :: EncodeQueryParam Username
 
 instance encodeUsername :: Encode Username where
   encode = genericEncode defaultOptions
@@ -34,14 +37,10 @@ instance decodeJsonUsername :: DecodeJson Username where
   decodeJson x = Username <$> decodeJson x
 
 newtype PhotoID = PhotoID Int
-
-instance eqPhotoID :: Eq PhotoID where
-  eq (PhotoID a) (PhotoID b) = a == b
-
-instance showPhotoID :: Show PhotoID where
-  show (PhotoID pid) = show pid
-
+derive instance newtypePhotoID :: Newtype PhotoID _
 derive instance genericPhotoID :: Generic PhotoID _
+derive newtype instance eqPhotoID :: Eq PhotoID
+instance showPhotoID :: Show PhotoID where show = genericShow
 
 instance encodePhotoID :: Encode PhotoID where
   encode = genericEncode defaultOptions
@@ -66,6 +65,9 @@ newtype Photo =
         }
 
 derive instance genericPhoto :: Generic Photo _
+derive instance newtypePhoto :: Newtype Photo _
+derive newtype instance eqPhoto :: Eq Photo
+instance showPhoto :: Show Photo where show = genericShow
 
 instance encodePhoto :: Encode Photo where
   encode = genericEncode defaultOptions
