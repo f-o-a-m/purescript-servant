@@ -17,7 +17,7 @@ import Effect.Class.Console as C
 import Servant.API as API
 import Servant.Client (ClientEnv(..), ErrorDescription(..))
 import Servant.Client.Error (errorDescription)
-import Servant.Spec.PhotoClient (AuthToken(..), ClientM, getHome, getPhotoByID, postPrivatePhoto, postPublicPhoto, runClientM, searchPhotos)
+import Servant.Spec.PhotoClient (AuthToken(..), ClientM, Date(..), getHome, getPhotoByID, postPrivatePhoto, postPublicPhoto, runClientM, searchPhotos)
 import Servant.Spec.Types (Photo(..), Username(..))
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -70,11 +70,19 @@ spec clientEnv = do
       res <- runClientM' clientEnv $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
       res `shouldShowEqual` Left (UnexpectedHTTPStatus (StatusCode 404))
     it "can search photos" do
-      let photo = Photo { username: bob, title: "blaa", photoID: Nothing}
       C.log $ "searching photo"
       photos <- assertClientM $ searchPhotos $ API.QueryParams 
         { fromIndex: Nothing
         , toIndex: Nothing
+        , username: [bob]
+        , maxCount: API.Required 10
+        }
+      length photos `shouldEqual` 0
+    it "can search photos 2" do
+      C.log $ "searching photo"
+      photos <- assertClientM $ searchPhotos $ API.QueryParams 
+        { fromIndex: Just $ Date 0
+        , toIndex: Just $ Date 10
         , username: [alice, bob]
         , maxCount: API.Required 10
         }

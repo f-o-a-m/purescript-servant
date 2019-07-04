@@ -4,14 +4,18 @@ module Servant.Spec.PhotoServer
 
 import Prelude
 
+import Control.Alt ((<|>))
+import Control.Bind (bindFlipped)
+import Control.Monad.Except (runExcept)
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson)
 import Data.Array (cons, elem, filter, head, take)
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.Function.Uncurried (Fn3)
 import Data.Int (fromString)
 import Data.Map (Map, insert)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (un)
+import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff, Error, error, message)
 import Effect.Aff.AVar (AVar)
@@ -19,10 +23,10 @@ import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log)
-import Foreign (Foreign, unsafeFromForeign)
+import Foreign (Foreign, readArray, readString, unsafeFromForeign)
 import Node.Express.App (App, get, listenHttp, post, setProp, useExternal, useOnError)
 import Node.Express.Handler (Handler, HandlerM, nextThrow)
-import Node.Express.Request (getBody', getQueryParam, getQueryParams, getRequestHeader, getRouteParam)
+import Node.Express.Request (getBody', getQueryParam, getRequestHeader, getRouteParam)
 import Node.Express.Response (sendJson, setStatus)
 import Node.Express.Types (Response, Request)
 import Node.HTTP (Server)
@@ -98,7 +102,8 @@ searchPhotosHandler state = do
   maxCount <- do
     mmax <- getQueryParam "maxCount"
     pure $ mmax >>= fromString
-  username <- getQueryParams "username"
+  username <- getQueryParam "username" <#> bindFlipped \f ->
+    hush $ runExcept $ map pure (readString f) <|> (readArray f >>= traverse readString)
   case maxCount of
     Nothing -> sendResponse 421 "oops"
     Just _ -> do
@@ -181,7 +186,7 @@ getPhotoById pid = AVar.read >=> \(PhotoDB {publicPhotos}) ->
 searchPhotos :: Filters -> AVar.AVar PhotoDB -> Aff (Array Photo)
 searchPhotos fs = AVar.read >=> \(PhotoDB {publicPhotos}) ->
   let
-    fFrom = maybe identity (\i -> filterByIndex (i < _)) fs.fromIndex
+    fFrom = maybe identity (\i -> filterByIndex (i <= _)) fs.fromIndex
     fTo = maybe identity (\i -> filterByIndex (i > _)) fs.toIndex
     fUsername = maybe identity filterByUsername fs.username
     fCount = maybe identity take fs.maxCount
