@@ -7,7 +7,7 @@ module Servant.Spec.PhotoClient
   , postPublicPhoto
   , postPrivatePhoto
   , AuthToken(..)
-  , Date(..)
+  , Index(..)
   ) where
 
 import Prelude
@@ -24,7 +24,7 @@ import Effect.Class (class MonadEffect)
 import Servant.API (type (:>))
 import Servant.API as API
 import Servant.Client as Client
-import Servant.Spec.Types (Photo, PhotoID, Username)
+import Servant.Spec.Types (Photo, PhotoID, PostPhotoBody, PostPhotoResponse, Username)
 
 --------------------------------------------------------------------------------
 -- ClientM
@@ -82,23 +82,23 @@ getPhotoByID =
 -- Query Params
 --------------------------------------------------------------------------------
 
-newtype Date = Date Int
+newtype Index = Index Int
 
-instance encodeQueryParamData :: API.EncodeQueryParam Date where
-  encodeQueryParam (Date d) = show d
+instance encodeQueryParamData :: API.EncodeQueryParam Index where
+  encodeQueryParam (Index d) = show d
 
 type SearchPhotos =
      API.S "photos"
-  :> API.QPs ( fromIndex :: Maybe Date
-             , toIndex :: Maybe Date
+  :> API.QPs ( fromIndex :: Maybe Index
+             , toIndex :: Maybe Index
              , username :: Array Username
              , maxCount :: API.Required Int
              )
   :> API.GET Json (Array Photo)
 
 searchPhotos
-  :: API.QueryParams ( fromIndex :: Maybe Date
-                     , toIndex :: Maybe Date
+  :: API.QueryParams ( fromIndex :: Maybe Index
+                     , toIndex :: Maybe Index
                      , username :: Array Username
                      , maxCount :: API.Required Int
                      )
@@ -114,12 +114,12 @@ searchPhotos =
 type PostPublicPhoto =
      API.S "photos"
   :> API.S "public"
-  :> API.Body Json Photo
-  :> API.POST Json PhotoID
+  :> API.Body Json PostPhotoBody
+  :> API.POST Json PostPhotoResponse
 
 postPublicPhoto
-  :: Photo
-  -> ClientM PhotoID
+  :: PostPhotoBody
+  -> ClientM PostPhotoResponse
 postPublicPhoto =
   Client.makeClientRoute (API.RouteProxy :: API.RouteProxy PostPublicPhoto)
 
@@ -135,13 +135,13 @@ instance toHeaderAuthToken :: API.ToHeader AuthToken where
 type PostPrivatePhoto =
      API.S "photos"
   :> API.S "private"
-  :> API.Body Json Photo
+  :> API.Body Json PostPhotoBody
   :> API.HDRs ("Authorization" :: AuthToken)
-  :> API.POST Json PhotoID
+  :> API.POST Json PostPhotoResponse
 
 postPrivatePhoto
-  :: Photo
+  :: PostPhotoBody
   -> API.Headers ("Authorization" :: AuthToken)
-  -> ClientM PhotoID
+  -> ClientM PostPhotoResponse
 postPrivatePhoto =
   Client.makeClientRoute (API.RouteProxy :: API.RouteProxy PostPrivatePhoto)
