@@ -7,7 +7,7 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Bind (bindFlipped)
 import Control.Monad.Except (runExcept)
-import Control.Monad.Reader (class MonadAsk, ReaderT(..), ask, runReader, runReaderT)
+import Control.Monad.Reader (class MonadAsk, ReaderT, ask, runReaderT)
 import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson)
 import Data.Array (cons, elem, filter, head, take)
 import Data.Either (Either(..), hush)
@@ -19,7 +19,6 @@ import Data.Newtype (un)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Aff (Aff, Error, error, message)
-import Effect.Aff.AVar (AVar)
 import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
@@ -134,12 +133,16 @@ postPublicPhotoHandler
   :: AppState
   -> Handler
 postPublicPhotoHandler state = do
+  log "postPublicPhotoHandler"
   ePhoto <- getBody
+  log $ show ePhoto
   case ePhoto of
     Left err -> nextThrow $ error $ "Couldn't parse Photo: " <> err
     Right (PostPhotoBody photo) -> do
-      photoID <- runDB state $ insertPrivatePhoto photo
-      sendJson $ PostPhotoResponse {photoID}
+      log $ show "hello"
+      photoID <- runDB state $ insertPublicPhoto photo
+      log $ show photoID
+      sendResponse 200 $ PostPhotoResponse {photoID}
 
 postPrivatePhotoHandler
   :: AppState
@@ -158,7 +161,7 @@ postPrivatePhotoHandler state = do
           if username == username'
             then do
               photoID <- runDB state $ insertPrivatePhoto photo
-              sendJson $ PostPhotoResponse {photoID}
+              sendResponse 200 $ PostPhotoResponse {photoID}
             else setStatus 403
 
 errorHandler
@@ -231,8 +234,10 @@ queryDB
   -> m r
 queryDB f = do
   {photoDB} <- ask
-  v <- liftAff $ AVar.take photoDB
-  pure $ f v
+  liftAff $ do
+    v <- AVar.take photoDB
+    AVar.put v photoDB
+    pure $ f v
 
 createPhoto
   :: forall m.
@@ -256,6 +261,7 @@ insertPublicPhoto
   -> m PhotoID
 insertPublicPhoto photoData = do
   photo@Photo{photoID} <- createPhoto photoData
+  log $ show photo
   withDB_ \(PhotoDB pdb) ->
     PhotoDB pdb { publicPhotos = cons photo pdb.publicPhotos
                 , index = pdb.index + 1
