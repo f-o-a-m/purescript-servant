@@ -17,7 +17,7 @@ Type: Json
 Format:
   { username : string
   , title : string
-  , data : hex
+  , _data : string
   }
 
 SUCCESS RESPONSE:
@@ -36,7 +36,7 @@ newtype PhotoID = PhotoID Int
 newtype PostPhotoBody =
   PostPhotoBody { username :: Username
                 , title :: String
-                , data :: ByteString 
+                , _data :: String
                 }
             
 instance encodeJsonPostPhotoBody :: EncodeJson PostPhotoBody where
@@ -99,14 +99,14 @@ import PhotoAppClient.Routes as Routes
 newtype Photo =
   Photo { username :: Username
         , title :: String
-        , data :: ByteString
+        , _data :: String
         , photoID :: PhotoID
         }
 
 postPublicPhoto
   :: { username :: Username
      , title :: String
-     , data :: ByteString
+     , _data :: String
      }
   -> ClientM Photo
 postPublicPhoto photo@{username, title, data} = do
