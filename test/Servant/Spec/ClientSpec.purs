@@ -10,7 +10,6 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Lens (view)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (over)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, Error, error, throwError)
 import Effect.Class.Console as C
@@ -18,7 +17,7 @@ import Servant.API as API
 import Servant.Client (ClientEnv(..), ErrorDescription(..))
 import Servant.Client.Error (errorDescription)
 import Servant.Spec.PhotoClient (AuthToken(..), ClientM, Date(..), getHome, getPhotoByID, postPrivatePhoto, postPublicPhoto, runClientM, searchPhotos)
-import Servant.Spec.Types (Photo(..), Username(..))
+import Servant.Spec.Types (Photo(..), PostPhotoBody(..), PostPhotoResponse(..), Username(..))
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -56,22 +55,17 @@ spec clientEnv = do
 
   describe "Capture" do
     it "can post a public photo" do
-      let photo = Photo { username: alice, title: "foo", photoID: Nothing}
-      C.log $ "posting photo"
-      photoID <- assertClientM $ postPublicPhoto photo
-      C.log $ show photoID
-      photo' <- assertClientM $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
-      photo' `shouldEqual` over Photo _{photoID = Just photoID} photo
+      let photoPost = PostPhotoBody { username: alice, title: "foo", _data: "abc"}
+      PostPhotoResponse {photoID} <- assertClientM $ postPublicPhoto photoPost
+      Photo photo <- assertClientM $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
+      photo.photoID `shouldEqual` photoID
     it "can post a private photo" do
-      let photo = Photo { username: bob, title: "blaa", photoID: Nothing}
-      C.log $ "posting photo"
-      photoID <- assertClientM $ postPrivatePhoto photo $ API.Headers {"Authorization": AuthToken "tok"}
-      C.log $ show photoID
+      let photoPost = PostPhotoBody { username: bob, title: "blaa", _data: "cde"}
+      PostPhotoResponse {photoID} <- assertClientM $ postPrivatePhoto photoPost $ API.Headers {"Authorization": AuthToken "Bob"}
       res <- runClientM' clientEnv $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
       res `shouldShowEqual` Left (UnexpectedHTTPStatus (StatusCode 404))
     it "can search photos" do
-      C.log $ "searching photo"
-      photos <- assertClientM $ searchPhotos $ API.QueryParams 
+      photos <- assertClientM $ searchPhotos $ API.QueryParams
         { fromIndex: Nothing
         , toIndex: Nothing
         , username: [bob]
@@ -80,7 +74,7 @@ spec clientEnv = do
       length photos `shouldEqual` 0
     it "can search photos 2" do
       C.log $ "searching photo"
-      photos <- assertClientM $ searchPhotos $ API.QueryParams 
+      photos <- assertClientM $ searchPhotos $ API.QueryParams
         { fromIndex: Just $ Date 0
         , toIndex: Just $ Date 10
         , username: [alice, bob]
