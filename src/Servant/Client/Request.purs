@@ -23,7 +23,6 @@ newtype ClientEnv =
   ClientEnv { protocol :: String, baseURL :: String }
 
 class RunRequest m where
-  -- | How to make a request.
   runRequest :: forall a. Affjax.Request a -> m (Affjax.Response a)
 
 -- | Do an Affjax.affjax call but report Aff exceptions in our own MonadError
@@ -41,6 +40,9 @@ defaultRunRequest req = do
          Right parsed -> pure $ res # prop (SProxy :: SProxy "body") .~ parsed
          Left formatErr -> throwError $ makeAjaxError req $ ParseError formatErr
 
+-- | Parse the result from the respose body using the decoder. At this point the
+-- | response body has already been parsed into the 'ResponseFormat' type, e.g. Json,
+-- | and we are decoding from that.
 parseResult
   :: forall parsed decoded m.
      MonadError AjaxError m

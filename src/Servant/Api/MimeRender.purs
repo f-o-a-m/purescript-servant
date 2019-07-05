@@ -11,6 +11,7 @@ import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, enco
 import Data.Either (Either)
 import Type.Proxy (Proxy)
 
+
 class MimeUnrender ctype a where
   mimeUnrender :: Proxy a -> Proxy ctype -> { responseFormat :: ResponseBody.ResponseFormat ctype
                                             , decode :: ctype -> Either String a

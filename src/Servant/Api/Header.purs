@@ -16,10 +16,12 @@ import Heterogeneous.Folding (class FoldingWithIndex, class FoldlRecord, hfoldlW
 import Prim.RowList (class RowToList)
 import Servant.API.Route (kind Route)
 
+-- | A combinator for request headers
 foreign import data HDRs :: #Type -> Route
 
 newtype Headers r = Headers (Record r)
 
+-- | Any type you want to use as a request header value must implement this typeclass.
 class ToHeader a where
   toHeader :: a -> String
 

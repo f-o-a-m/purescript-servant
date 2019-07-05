@@ -22,6 +22,9 @@ import Heterogeneous.Folding (class FoldingWithIndex, class FoldlRecord, hfoldlW
 import Prim.RowList (class RowToList)
 import Servant.API.Route (kind Route)
 
+-- | A combinator to use for query parameters. Query parameter values can use one of
+-- | three functors in order to specify what kind of parameter it is:
+-- | 'Maybe' for optional, 'Required' for required, 'Array' for multi-valued params.
 foreign import data QPs :: #Type -> Route
 
 newtype QueryParams r = QueryParams (Record r)
