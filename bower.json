@@ -12,6 +12,14 @@
     "purescript-affjax": "^9.0.0"
   },
   "devDependencies": {
-    "purescript-console": "^4.2.0"
+    "purescript-console": "^4.2.0",
+    "purescript-avar": "^3.0.0",
+    "purescript-express": "^0.8.0",
+    "purescript-spec": "^4.0.0"
+  },
+  "resolutions": {
+    "purescript-foreign-object": "^2.0.0",
+    "purescript-typelevel-prelude": "^3.0.0",
+    "purescript-record": "^1.0.0"
   }
 }

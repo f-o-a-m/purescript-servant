@@ -15,7 +15,7 @@ import Servant.API.Capture (class ToCapture, CAP, Capture, capture, toCapture, u
 import Servant.API.Header (class ToHeader, HDRs, HeaderEntry, Headers(..), foldHeaders, toHeader) as Header
 import Servant.API.Method (class IsMethod, DELETE, GET, POST, method) as Method
 import Servant.API.MimeRender (class MimeRender, class MimeUnrender, mimeRender, mimeUnrender) as MimeRender
-import Servant.API.NoContent (NoContent) as NoContent
+import Servant.API.NoContent (NoContent(..)) as NoContent
 import Servant.API.PathComponent (S) as PathComponent
 import Servant.API.QueryParam (class EncodeQueryParam, QPs, QueryParam, class QueryParam1, queryParam1, QueryParamEntry, QueryParams(..), Required(..), encodeQueryParam, formatQueryString) as QueryParam
 import Servant.API.Route (type (:>), RouteCons, RouteProxy(..), kind Route) as Route
