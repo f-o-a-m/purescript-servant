@@ -133,24 +133,18 @@ postPublicPhotoHandler
   :: AppState
   -> Handler
 postPublicPhotoHandler state = do
-  log "postPublicPhotoHandler"
   ePhoto <- getBody
-  log $ show ePhoto
   case ePhoto of
     Left err -> nextThrow $ error $ "Couldn't parse Photo: " <> err
     Right (PostPhotoBody photo) -> do
-      log $ show "hello"
       photoID <- runDB state $ insertPublicPhoto photo
-      log $ show photoID
       sendResponse 200 $ PostPhotoResponse {photoID}
 
 postPrivatePhotoHandler
   :: AppState
   -> Handler
 postPrivatePhotoHandler state = do
-  log "postPrivatePhotoHandler"
   mAuthHeader <- getRequestHeader "Authorization"
-  log $ show mAuthHeader
   case mAuthHeader of
     Nothing -> sendResponse 403 "oops"
     Just username -> do
@@ -261,7 +255,6 @@ insertPublicPhoto
   -> m PhotoID
 insertPublicPhoto photoData = do
   photo@Photo{photoID} <- createPhoto photoData
-  log $ show photo
   withDB_ \(PhotoDB pdb) ->
     PhotoDB pdb { publicPhotos = cons photo pdb.publicPhotos
                 , index = pdb.index + 1
@@ -300,7 +293,7 @@ searchPhotos
 searchPhotos fs = queryDB \(PhotoDB {publicPhotos}) ->
   let
     fFrom = maybe identity (\i -> filterByIndex (i <= _)) fs.fromIndex
-    fTo = maybe identity (\i -> filterByIndex (i > _)) fs.toIndex
+    fTo = maybe identity (\i -> filterByIndex (i >= _)) fs.toIndex
     fUsername = maybe identity filterByUsername fs.username
     fCount = maybe identity take fs.maxCount
   in (fFrom >>> fTo >>> fUsername >>> fCount) publicPhotos

@@ -7,7 +7,7 @@ module Servant.Spec.PhotoClient
   , postPublicPhoto
   , postPrivatePhoto
   , AuthToken(..)
-  , Date(..)
+  , Index(..)
   ) where
 
 import Prelude
@@ -82,23 +82,23 @@ getPhotoByID =
 -- Query Params
 --------------------------------------------------------------------------------
 
-newtype Date = Date Int
+newtype Index = Index Int
 
-instance encodeQueryParamData :: API.EncodeQueryParam Date where
-  encodeQueryParam (Date d) = show d
+instance encodeQueryParamData :: API.EncodeQueryParam Index where
+  encodeQueryParam (Index d) = show d
 
 type SearchPhotos =
      API.S "photos"
-  :> API.QPs ( fromIndex :: Maybe Date
-             , toIndex :: Maybe Date
+  :> API.QPs ( fromIndex :: Maybe Index
+             , toIndex :: Maybe Index
              , username :: Array Username
              , maxCount :: API.Required Int
              )
   :> API.GET Json (Array Photo)
 
 searchPhotos
-  :: API.QueryParams ( fromIndex :: Maybe Date
-                     , toIndex :: Maybe Date
+  :: API.QueryParams ( fromIndex :: Maybe Index
+                     , toIndex :: Maybe Index
                      , username :: Array Username
                      , maxCount :: API.Required Int
                      )

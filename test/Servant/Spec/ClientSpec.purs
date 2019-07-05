@@ -16,8 +16,8 @@ import Effect.Class.Console as C
 import Servant.API as API
 import Servant.Client (ClientEnv(..), ErrorDescription(..))
 import Servant.Client.Error (errorDescription)
-import Servant.Spec.PhotoClient (AuthToken(..), ClientM, Date(..), getHome, getPhotoByID, postPrivatePhoto, postPublicPhoto, runClientM, searchPhotos)
-import Servant.Spec.Types (Photo(..), PostPhotoBody(..), PostPhotoResponse(..), Username(..))
+import Servant.Spec.PhotoClient (AuthToken(..), ClientM, Index(..), getHome, getPhotoByID, postPrivatePhoto, postPublicPhoto, runClientM, searchPhotos)
+import Servant.Spec.Types (Photo(..), PhotoID(..), PostPhotoBody(..), PostPhotoResponse(..), Username(..))
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -60,11 +60,11 @@ spec clientEnv = do
       Photo photo <- assertClientM $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
       photo.photoID `shouldEqual` photoID
     it "can post a private photo" do
-      let photoPost = PostPhotoBody { username: bob, title: "blaa", _data: "cde"}
+      let photoPost = PostPhotoBody { username: bob, title: "blaa", _data: "def"}
       PostPhotoResponse {photoID} <- assertClientM $ postPrivatePhoto photoPost $ API.Headers {"Authorization": AuthToken "Bob"}
       res <- runClientM' clientEnv $ getPhotoByID (API.capture (SProxy :: SProxy "photoID") photoID)
       res `shouldShowEqual` Left (UnexpectedHTTPStatus (StatusCode 404))
-    it "can search photos" do
+    it "can search public photos without returning private photos" do
       photos <- assertClientM $ searchPhotos $ API.QueryParams
         { fromIndex: Nothing
         , toIndex: Nothing
@@ -72,15 +72,41 @@ spec clientEnv = do
         , maxCount: API.Required 10
         }
       length photos `shouldEqual` 0
-    it "can search photos 2" do
-      C.log $ "searching photo"
+    it "can search public photos" do
       photos <- assertClientM $ searchPhotos $ API.QueryParams
-        { fromIndex: Just $ Date 0
-        , toIndex: Just $ Date 10
+        { fromIndex: Just $ Index 0
+        , toIndex: Just $ Index 10
         , username: [alice, bob]
         , maxCount: API.Required 10
         }
       length photos `shouldEqual` 1
+    it "can search public photos using more params" do
+      let photoPost = PostPhotoBody { username: alice, title: "foo2", _data: "ghi"}
+      PostPhotoResponse {photoID: PhotoID pid} <- assertClientM $ postPublicPhoto photoPost
+      C.log "Getting all of alice's photos"
+      photos <- assertClientM $ searchPhotos $ API.QueryParams
+        { fromIndex: Just $ Index 0
+          , toIndex: Just $ Index pid
+          , username: [alice]
+          , maxCount: API.Required 2
+          }
+      length photos `shouldEqual` 2
+      C.log "Getting all of alice's photos except the last one"
+      photosMinusLast <- assertClientM $ searchPhotos $ API.QueryParams
+        { fromIndex: Just $ Index 0
+        , toIndex: Just $ Index (pid - 1)
+        , username: [alice]
+        , maxCount: API.Required 2
+        }
+      length photosMinusLast `shouldEqual` 1
+      C.log "Getting a portion of alice's photos"
+      photosSlice <- assertClientM $ searchPhotos $ API.QueryParams
+        { fromIndex: Just $ Index 1
+        , toIndex: Just $ Index pid
+        , username: [alice]
+        , maxCount: API.Required 1
+        }
+      length photosSlice `shouldEqual` 1
 
 
 shouldShowEqual :: forall m t. MonadThrow Error m => Show t => t -> t -> m Unit
