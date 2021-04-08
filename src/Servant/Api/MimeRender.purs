@@ -5,10 +5,13 @@ module Servant.API.MimeRender
   , mimeRender
   ) where
 
+import Prelude
+
 import Affjax.RequestBody as RequestBody
 import Affjax.ResponseFormat as ResponseBody
-import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson)
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, printJsonDecodeError)
 import Data.Either (Either)
+import Data.EitherR (fmapL)
 import Type.Proxy (Proxy)
 
 
@@ -19,7 +22,7 @@ class MimeUnrender ctype a where
 
 instance mimeUnrenderJson :: DecodeJson a => MimeUnrender Json a where
   mimeUnrender _ _ = { responseFormat: ResponseBody.json
-                     , decode: decodeJson
+                     , decode: fmapL printJsonDecodeError <<< decodeJson
                      }
 
 class MimeRender ctype a where
