@@ -10,7 +10,6 @@ module Servant.Client.Error
 import Prelude
 
 import Affjax as Affjax
-import Affjax.ResponseFormat (ResponseFormatError, printResponseFormatError)
 import Affjax.StatusCode (StatusCode)
 import Data.Exists (Exists, mkExists, runExists)
 import Data.Lens (Lens', lens)
@@ -33,16 +32,14 @@ errorDescription =
 
 data ErrorDescription =
     UnexpectedHTTPStatus StatusCode
-  | ParseError ResponseFormatError
   | DecodingError String
-  | ConnectionError String
+  | RequestError String
 
 instance showErrorDecription :: Show ErrorDescription where
   show e = case e of
     UnexpectedHTTPStatus status -> "UnexpectedHTTPStatus " <> show status
-    ParseError e' -> "ParseError " <> printResponseFormatError e'
     DecodingError e' -> "DecodingError " <> e'
-    ConnectionError e' -> "ConnectionError " <> e'
+    RequestError e' -> "RequestError " <> e'
 
 makeAjaxError :: forall a. Affjax.Request a -> ErrorDescription -> AjaxError
 makeAjaxError req desc = AjaxError <<< mkExists $

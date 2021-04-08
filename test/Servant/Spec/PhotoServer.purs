@@ -8,9 +8,10 @@ import Control.Alt ((<|>))
 import Control.Bind (bindFlipped)
 import Control.Monad.Except (runExcept)
 import Control.Monad.Reader (class MonadAsk, ReaderT, ask, runReaderT)
-import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson)
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, printJsonDecodeError)
 import Data.Array (cons, elem, filter, head, take)
 import Data.Either (Either(..), hush)
+import Data.EitherR (fmapL)
 import Data.Function.Uncurried (Fn3)
 import Data.Int (fromString)
 import Data.Map (Map, insert)
@@ -31,6 +32,7 @@ import Node.Express.Response (sendJson, setStatus)
 import Node.Express.Types (Response, Request)
 import Node.HTTP (Server)
 import Servant.Spec.Types (Photo(..), PhotoID(..), PostPhotoBody(..), PostPhotoResponse(..), Username(..))
+
 --------------------------------------------------------------------------------
 -- Application
 --------------------------------------------------------------------------------
@@ -54,6 +56,7 @@ getBody =
     <#> (unsafeFromForeign :: Foreign -> Json)
     -- and then we use `decodeJson`
     >>> decodeJson
+    >>> fmapL printJsonDecodeError
 
 
 sendResponse
@@ -254,7 +257,8 @@ insertPublicPhoto
   => PhotoData
   -> m PhotoID
 insertPublicPhoto photoData = do
-  photo@Photo{photoID} <- createPhoto photoData
+  photo <- createPhoto photoData
+  let Photo{photoID} = photo
   withDB_ \(PhotoDB pdb) ->
     PhotoDB pdb { publicPhotos = cons photo pdb.publicPhotos
                 , index = pdb.index + 1
@@ -268,7 +272,8 @@ insertPrivatePhoto
   => PhotoData
   -> m PhotoID
 insertPrivatePhoto photoData@{username: Username u} = do
-  photo@Photo{photoID} <- createPhoto photoData
+  photo <- createPhoto photoData
+  let Photo{photoID} = photo
   withDB_ \(PhotoDB pdb) ->
     PhotoDB pdb { privatePhotos = insert u photo pdb.privatePhotos
                 , index = pdb.index + 1

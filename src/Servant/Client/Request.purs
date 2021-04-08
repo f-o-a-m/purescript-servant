@@ -8,14 +8,11 @@ module Servant.Client.Request
 
 import Prelude
 
+import Affjax (printError)
 import Affjax as Affjax
 import Affjax.StatusCode (StatusCode(..))
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Either (Either(..))
-import Data.Lens ((.~))
-import Data.Lens.Record (prop)
-import Data.Symbol (SProxy(..))
-import Effect.Aff (message, try)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Servant.Client.Error (AjaxError, ErrorDescription(..), makeAjaxError)
 
@@ -32,13 +29,10 @@ defaultRunRequest :: forall m a
   => Affjax.Request a
   -> m (Affjax.Response a)
 defaultRunRequest req = do
-   eRes <- liftAff (try $ Affjax.request req)
-   case eRes of
-     Left err -> throwError $ makeAjaxError req $ ConnectionError (message err)
-     Right res -> do
-       case res.body of
-         Right parsed -> pure $ res # prop (SProxy :: SProxy "body") .~ parsed
-         Left formatErr -> throwError $ makeAjaxError req $ ParseError formatErr
+  eRes <- liftAff (Affjax.request req)
+  case eRes of
+    Right res -> pure res
+    Left err -> throwError $ makeAjaxError req $ RequestError (printError err)
 
 -- | Parse the result from the respose body using the decoder. At this point the
 -- | response body has already been parsed into the 'ResponseFormat' type, e.g. Json,
