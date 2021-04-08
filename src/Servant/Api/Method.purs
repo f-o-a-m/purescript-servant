@@ -6,13 +6,13 @@ module Servant.API.Method
   , method
   ) where
 
-
 import Data.HTTP.Method (Method(..))
 import Servant.API.Route (RouteProxy, kind Route)
 
-
 foreign import data GET :: Type -> Type -> Route
+
 foreign import data POST :: Type -> Type -> Route
+
 foreign import data DELETE :: Type -> Type -> Route
 
 class IsMethod (r :: Route) where

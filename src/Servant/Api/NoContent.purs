@@ -3,11 +3,10 @@ module Servant.API.NoContent
   ) where
 
 import Prelude
-
 import Data.Argonaut (class DecodeJson)
 
-data NoContent = NoContent
+data NoContent
+  = NoContent
 
 instance decodeNoContent :: DecodeJson NoContent where
   decodeJson = const $ pure NoContent
-

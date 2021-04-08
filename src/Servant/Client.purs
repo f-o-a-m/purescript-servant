@@ -11,11 +11,10 @@ import Servant.Client.HasClient (class HasClient, buildClientRoute, defaultSuspe
 import Servant.Client.Request (class RunRequest, ClientEnv(..), defaultRunRequest, runRequest)
 import Type.Proxy (Proxy2(..))
 
-makeClientRoute
-  :: forall m r f.
-     HasClient r m f
-  => MonadError AjaxError m
-  => API.RouteProxy r
-  -> f
-makeClientRoute r =
-  buildClientRoute r (Proxy2 :: Proxy2 m) defaultSuspendedRoute
+makeClientRoute ::
+  forall m r f.
+  HasClient r m f =>
+  MonadError AjaxError m =>
+  API.RouteProxy r ->
+  f
+makeClientRoute r = buildClientRoute r (Proxy2 :: Proxy2 m) defaultSuspendedRoute

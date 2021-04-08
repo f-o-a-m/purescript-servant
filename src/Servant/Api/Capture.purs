@@ -8,7 +8,6 @@ module Servant.API.Capture
   ) where
 
 import Prelude
-
 import Data.Symbol (SProxy)
 import Servant.API.Route (kind Route)
 
@@ -17,7 +16,8 @@ foreign import data CAP :: Symbol -> Type -> Route
 
 -- | We use the 's :: Symbol' parameter because often times it's hard to remember
 -- | the args are for nested captures.
-newtype Capture (s :: Symbol) a = Capture a
+newtype Capture (s :: Symbol) a
+  = Capture a
 
 capture :: forall s a. SProxy s -> a -> Capture s a
 capture _ a = Capture a
